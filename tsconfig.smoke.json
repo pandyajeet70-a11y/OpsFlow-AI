@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "outDir": "scripts-dist",
+    "types": ["node"]
+  },
+  "files": [
+    "lib/ai/tools/schema.ts",
+    "lib/ai/tools/decision.ts",
+    "lib/ai/tools/registry.ts",
+    "lib/ai/tools/types.ts",
+    "lib/ai/approvals/types.ts",
+    "lib/ai/approvals/store.ts",
+    "lib/ai/approvals/service.ts",
+    "scripts/smoke-tests.ts",
+    "scripts/approval-tests.ts"
+    ,"scripts/integration-tests.ts"
+  ],
+  "exclude": ["node_modules"]
+}
