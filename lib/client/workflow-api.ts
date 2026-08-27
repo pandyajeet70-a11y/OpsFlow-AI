@@ -1,3 +1,5 @@
+import { authFetch, responseError } from "@/lib/client/auth";
+
 export interface DashboardSummaryResponse {
   metrics: {
     totalHandoffs: number;
@@ -13,8 +15,8 @@ export interface DashboardSummaryResponse {
 }
 
 export async function fetchDashboardSummary(): Promise<DashboardSummaryResponse> {
-  const response = await fetch("/api/dashboard/summary", { cache: "no-store" });
-  if (!response.ok) throw new Error("Unable to load dashboard summary.");
+  const response = await authFetch("/api/dashboard/summary", { cache: "no-store" });
+  if (!response.ok) throw await responseError(response, "Unable to load dashboard summary.");
   const body = (await response.json()) as { data: DashboardSummaryResponse };
   return body.data;
 }

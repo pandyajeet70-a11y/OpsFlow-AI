@@ -5,6 +5,7 @@ import {
   fetchDashboardSummary,
   type DashboardSummaryResponse,
 } from "@/lib/client/workflow-api";
+import { formatApiError } from "@/lib/client/auth";
 
 export function useWorkflowDashboard() {
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
@@ -16,7 +17,7 @@ export function useWorkflowDashboard() {
     setError(null);
     return fetchDashboardSummary()
       .then((summary) => setData(summary))
-      .catch(() => setError("Unable to load workflow dashboard data."))
+      .catch((cause) => setError(formatApiError(cause, "Unable to load workflow dashboard data.")))
       .finally(() => setLoading(false));
   };
 
@@ -26,8 +27,8 @@ export function useWorkflowDashboard() {
       .then((summary) => {
         if (active) setData(summary);
       })
-      .catch(() => {
-        if (active) setError("Unable to load workflow dashboard data.");
+      .catch((cause) => {
+        if (active) setError(formatApiError(cause, "Unable to load workflow dashboard data."));
       })
       .finally(() => {
         if (active) setLoading(false);

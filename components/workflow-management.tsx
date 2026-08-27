@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Check, X, RotateCcw, ArrowLeft } from "lucide-react";
-import { authFetch } from "@/lib/client/auth";
+import { authFetch, formatApiError, responseError } from "@/lib/client/auth";
 import { useAuth } from "./auth-provider";
 
 type RecordItem = Record<string, unknown> & { id?: string };
@@ -29,7 +29,7 @@ function Status({ value }: { value: unknown }) {
 
 async function getData(url: string): Promise<RecordItem[]> {
   const response = await authFetch(url);
-  if (!response.ok) throw new Error("Unable to load workflow data.");
+  if (!response.ok) throw await responseError(response, "Unable to load workflow data.");
   const body = (await response.json()) as { data?: RecordItem[] | { events?: RecordItem[]; audit?: RecordItem[] } };
   if (Array.isArray(body.data)) return body.data;
   if (body.data && "events" in body.data) return [...(body.data.events ?? []), ...(body.data.audit ?? [])];
@@ -50,15 +50,15 @@ export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: stri
     try {
       if (id) {
         const resource = mode === "handoffs" ? "handoffs" : "executions";
-        const response = await authFetch(`/api/workflow/${resource}/${id}`);
-        if (!response.ok) throw new Error("Unable to load this record.");
+          const response = await authFetch(`/api/workflow/${resource}/${id}`);
+          if (!response.ok) throw await responseError(response, "Unable to load this record.");
         const body = (await response.json()) as { data: RecordItem };
         setDetail(body.data);
       } else {
         setItems(await getData(`/api/workflow/${mode}?limit=50`));
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load workflow data.");
+      setError(formatApiError(cause, "Unable to load workflow data."));
     } finally { setLoading(false); }
   }, [id, mode]);
   useEffect(() => { void load(); }, [load]);
@@ -67,9 +67,9 @@ export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: stri
     const key = `${action}-${approvalId}`; setActionState(key); setError(null);
     try {
       const response = await authFetch(`/api/approvals/${approvalId}/${action}`, { method: "POST" });
-      if (!response.ok) throw new Error("Unable to update approval.");
+      if (!response.ok) throw await responseError(response, "Unable to update approval.");
       setNotice(`Approval ${action}d.`); await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to update approval."); }
+    } catch (cause) { setError(formatApiError(cause, "Unable to update approval.")); }
     finally { setActionState(null); }
   };
 
@@ -77,9 +77,9 @@ export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: stri
     setActionState(`retry-${actionId}`); setError(null);
     try {
       const response = await authFetch(`/api/workflow/actions/${actionId}/retry`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ executionId }) });
-      if (!response.ok) throw new Error("Unable to retry action.");
+      if (!response.ok) throw await responseError(response, "Unable to retry action.");
       setNotice("Action retry requested."); await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to retry action."); }
+    } catch (cause) { setError(formatApiError(cause, "Unable to retry action.")); }
     finally { setActionState(null); }
   };
 

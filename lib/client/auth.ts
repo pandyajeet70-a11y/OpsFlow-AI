@@ -36,6 +36,19 @@ export function onUserChanged(cb: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, cb);
 }
 
+let authStateReady: Promise<User | null> | null = null;
+
+function getAuthStateReady(): Promise<User | null> {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  authStateReady ??= new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+  return authStateReady;
+}
+
 export interface AuthFetchOptions extends RequestInit {
   skipAuth?: boolean;
 }
@@ -53,7 +66,7 @@ export async function authFetch(
   const isApi =
     typeof input === "string" && (input.startsWith("/api/") || input.startsWith("http"));
 
-  if (isApi && !init?.skipAuth && !auth.currentUser) {
+  if (isApi && !init?.skipAuth && !(await getAuthStateReady())) {
     return new Response(
       JSON.stringify({
         error: {
@@ -67,13 +80,46 @@ export async function authFetch(
 
   const headers = new Headers(init?.headers);
   if (isApi && !init?.skipAuth && !headers.has("authorization")) {
-    try {
-      const token = await getBearerToken();
-      headers.set("authorization", `Bearer ${token}`);
-    } catch {
-      // Fall through: the server will reject the unauthenticated request.
-    }
+    const token = await getBearerToken();
+    headers.set("authorization", `Bearer ${token}`);
   }
 
   return fetch(input, { ...init, headers });
+}
+
+export class ApiResponseError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "ApiResponseError";
+  }
+}
+
+export async function responseError(
+  response: Response,
+  fallback: string
+): Promise<ApiResponseError> {
+  let message = fallback;
+  try {
+    const body = (await response.clone().json()) as {
+      error?: string | { message?: string };
+    };
+    if (typeof body.error === "string") message = body.error;
+    else if (body.error?.message) message = body.error.message;
+  } catch {
+    // Keep the caller's fallback when the response is not JSON.
+  }
+  return new ApiResponseError(response.status, message);
+}
+
+export function formatApiError(error: unknown, fallback: string): string {
+  if (process.env.NODE_ENV === "development") {
+    if (error instanceof ApiResponseError) {
+      return `${fallback} (${error.status}: ${error.message})`;
+    }
+    return error instanceof Error ? `${fallback} (${error.message})` : fallback;
+  }
+  return fallback;
 }
