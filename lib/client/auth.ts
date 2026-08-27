@@ -40,13 +40,17 @@ let authStateReady: Promise<User | null> | null = null;
 
 function getAuthStateReady(): Promise<User | null> {
   if (auth.currentUser) return Promise.resolve(auth.currentUser);
-  authStateReady ??= new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe();
-      resolve(user);
+  if (!authStateReady) {
+    authStateReady = new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        unsubscribe();
+        resolve(user);
+      });
     });
+  }
+  return authStateReady.finally(() => {
+    authStateReady = null;
   });
-  return authStateReady;
 }
 
 export interface AuthFetchOptions extends RequestInit {

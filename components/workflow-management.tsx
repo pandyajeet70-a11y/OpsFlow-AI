@@ -8,6 +8,12 @@ import { useAuth } from "./auth-provider";
 
 type RecordItem = Record<string, unknown> & { id?: string };
 type Mode = "handoffs" | "executions" | "approvals" | "activity";
+const emptyState: Record<Mode, string> = {
+  handoffs: "No handoffs yet",
+  executions: "No executions yet",
+  approvals: "No approvals yet",
+  activity: "No activity yet",
+};
 
 function text(value: unknown, fallback = "-"): string {
   return typeof value === "string" && value ? value : fallback;
@@ -33,7 +39,7 @@ async function getData(url: string): Promise<RecordItem[]> {
   const body = (await response.json()) as { data?: RecordItem[] | { events?: RecordItem[]; audit?: RecordItem[] } };
   if (Array.isArray(body.data)) return body.data;
   if (body.data && "events" in body.data) return [...(body.data.events ?? []), ...(body.data.audit ?? [])];
-  return [];
+  throw new Error("The workflow API returned an unexpected response.");
 }
 
 export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: string }) {
@@ -88,7 +94,7 @@ export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: stri
 
   if (detail) return <Panel><div className="mb-6 flex items-center justify-between"><Link href={`/dashboard/${mode}`} className="inline-flex items-center gap-2 text-sm text-cyan-300"><ArrowLeft className="h-4 w-4" />Back</Link><Status value={detail.status} /></div><RecordDetail record={detail} /></Panel>;
 
-  return <Panel><div className="mb-6 flex items-center justify-between"><div><p className="text-xs uppercase tracking-[.28em] text-cyan-300">Workspace data</p><h1 className="mt-2 text-2xl font-semibold text-white">{mode[0].toUpperCase() + mode.slice(1)}</h1></div><button onClick={() => void load()} className="icon-button" title="Refresh"><RefreshCw className="h-4 w-4" /></button></div>{notice && <p className="mb-4 text-sm text-emerald-300">{notice}</p>}{items.length === 0 ? <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">No {mode} found.</p> : <div className="space-y-3">{items.map((item, index) => <RecordRow key={String(item.id ?? index)} item={item} mode={mode} busy={actionState} onApproval={can("approve_actions") ? approvalAction : async () => undefined} onRetry={can("retry_actions") ? retryAction : async () => undefined} canApprove={can("approve_actions")} canRetry={can("retry_actions")} />)}</div>}</Panel>;
+  return <Panel><div className="mb-6 flex items-center justify-between"><div><p className="text-xs uppercase tracking-[.28em] text-cyan-300">Workspace data</p><h1 className="mt-2 text-2xl font-semibold text-white">{mode[0].toUpperCase() + mode.slice(1)}</h1></div><button onClick={() => void load()} className="icon-button" title="Refresh"><RefreshCw className="h-4 w-4" /></button></div>{notice && <p className="mb-4 text-sm text-emerald-300">{notice}</p>}{items.length === 0 ? <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">{emptyState[mode]}</p> : <div className="space-y-3">{items.map((item, index) => <RecordRow key={String(item.id ?? index)} item={item} mode={mode} busy={actionState} onApproval={can("approve_actions") ? approvalAction : async () => undefined} onRetry={can("retry_actions") ? retryAction : async () => undefined} canApprove={can("approve_actions")} canRetry={can("retry_actions")} />)}</div>}</Panel>;
 }
 
 function Panel({ children }: { children: React.ReactNode }) { return <div className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-6 backdrop-blur-2xl">{children}</div>; }
