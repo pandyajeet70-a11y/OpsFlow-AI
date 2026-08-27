@@ -83,7 +83,7 @@ export async function authFetch(
   }
 
   const headers = new Headers(init?.headers);
-  if (isApi && !init?.skipAuth && !headers.has("authorization")) {
+  if (isApi && !init?.skipAuth) {
     const token = await getBearerToken();
     headers.set("authorization", `Bearer ${token}`);
   }

@@ -22,10 +22,10 @@ import type { AuthenticatedUser, Claims, Role } from "./types";
  * `status` is the HTTP code to return; `code` is a stable machine identifier.
  */
 export class AuthError extends Error {
-  public readonly status: 401 | 403;
+  public readonly status: 401 | 403 | 500;
   public readonly code: string;
 
-  constructor(status: 401 | 403, code: string, message: string) {
+  constructor(status: 401 | 403 | 500, code: string, message: string) {
     super(message);
     this.name = "AuthError";
     this.status = status;
@@ -50,6 +50,12 @@ export interface TokenVerifier {
 }
 
 let verifier: TokenVerifier | null = null;
+
+function logVerificationFailure(code: string): void {
+  if (process.env.NODE_ENV === "development") {
+    console.error(`[firebase-auth] token verification failed: ${code}`);
+  }
+}
 
 /** Install a (mock) verifier — used by the offline test harness. */
 export function setTokenVerifier(v: TokenVerifier | null): void {
@@ -89,6 +95,15 @@ export async function verifyIdToken(idToken: string): Promise<AuthenticatedUser>
     if (e instanceof AuthError) throw e;
     const raw = e as { code?: string; message?: string };
     const code = raw?.code ?? raw?.message ?? "unknown";
+    if (code === "opsflow/admin-config") {
+      logVerificationFailure(code);
+      throw new AuthError(
+        500,
+        "AUTH_SERVER_MISCONFIGURED",
+        "Authentication service is not configured."
+      );
+    }
+    logVerificationFailure(code);
     // Firebase Auth error codes for expiry / invalid tokens.
     if (
       code === "auth/id-token-expired" ||
@@ -143,11 +158,18 @@ export async function getAuthenticatedUser(
   req: NextRequest
 ): Promise<AuthenticatedUser> {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+  if (!authHeader) {
     throw new AuthError(
       401,
       "AUTH_MISSING_TOKEN",
       "Authentication required. Provide an Authorization: Bearer <idToken> header."
+    );
+  }
+  if (!authHeader.toLowerCase().startsWith("bearer ")) {
+    throw new AuthError(
+      401,
+      "AUTH_MALFORMED_TOKEN",
+      "Authentication required. Use the Bearer token scheme."
     );
   }
 

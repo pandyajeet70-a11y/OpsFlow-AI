@@ -71,6 +71,9 @@ export function authorizationErrorResponse(error: unknown): NextResponse {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
   if (error instanceof AuthError) {
+    if (error.status === 500) {
+      return NextResponse.json({ error: "Authentication service unavailable." }, { status: 500 });
+    }
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   return NextResponse.json({ error: "Authentication required." }, { status: 401 });
