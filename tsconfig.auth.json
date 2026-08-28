@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": "scripts-dist/auth",
+    "incremental": false
+  },
+  "files": [
+    "scripts/auth-tests.ts",
+    "lib/ai/auth/firebase.ts",
+    "lib/firebase-admin.ts"
+  ]
+}

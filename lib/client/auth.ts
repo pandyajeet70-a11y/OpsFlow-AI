@@ -36,21 +36,11 @@ export function onUserChanged(cb: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, cb);
 }
 
-let authStateReady: Promise<User | null> | null = null;
+let authStateReady: Promise<void> | null = null;
 
-function getAuthStateReady(): Promise<User | null> {
-  if (auth.currentUser) return Promise.resolve(auth.currentUser);
-  if (!authStateReady) {
-    authStateReady = new Promise((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        unsubscribe();
-        resolve(user);
-      });
-    });
-  }
-  return authStateReady.finally(() => {
-    authStateReady = null;
-  });
+function getAuthStateReady(): Promise<void> {
+  if (!authStateReady) authStateReady = auth.authStateReady();
+  return authStateReady;
 }
 
 export interface AuthFetchOptions extends RequestInit {
@@ -70,7 +60,11 @@ export async function authFetch(
   const isApi =
     typeof input === "string" && (input.startsWith("/api/") || input.startsWith("http"));
 
-  if (isApi && !init?.skipAuth && !(await getAuthStateReady())) {
+  if (isApi && !init?.skipAuth && !auth.currentUser) {
+    await getAuthStateReady();
+  }
+
+  if (isApi && !init?.skipAuth && !auth.currentUser) {
     return new Response(
       JSON.stringify({
         error: {
