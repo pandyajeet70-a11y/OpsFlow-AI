@@ -51,34 +51,72 @@ export interface TokenVerifier {
 
 let verifier: TokenVerifier | null = null;
 
+function expectedProjectId(): string | undefined {
+  const value = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim();
+  if (!value) return undefined;
+  return value.replace(/^("[\s\S]*"|'[\s\S]*')$/, (quoted) => quoted.slice(1, -1));
+}
+
 function readTokenMetadata(idToken: string): Record<string, unknown> {
   try {
-    const payload = idToken.split(".")[1];
-    if (!payload) return { tokenShape: "invalid" };
+    const [headerPart, payload] = idToken.split(".");
+    if (!headerPart || !payload) {
+      return {
+        algorithm: undefined,
+        hasKeyId: false,
+        hasSubject: false,
+        issuedAt: undefined,
+        expiresAt: undefined,
+        isExpired: undefined,
+        expectedProjectId: expectedProjectId(),
+        issuer: undefined,
+        audience: undefined,
+        issuerMatches: undefined,
+        audienceMatches: undefined,
+      };
+    }
+    const header = JSON.parse(Buffer.from(headerPart, "base64url").toString("utf8")) as Record<string, unknown>;
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
-    const expectedProjectId = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim().replace(/^("[\s\S]*"|'[\s\S]*')$/, (quoted) => quoted.slice(1, -1));
+    const projectId = expectedProjectId();
     const issuer = typeof decoded.iss === "string" ? decoded.iss : undefined;
     const audience = typeof decoded.aud === "string" ? decoded.aud : undefined;
+    const exp = typeof decoded.exp === "number" ? decoded.exp : undefined;
     return {
-      expectedProjectId,
+      algorithm: typeof header.alg === "string" ? header.alg : undefined,
+      hasKeyId: typeof header.kid === "string" && header.kid.length > 0,
+      hasSubject: typeof decoded.sub === "string" && decoded.sub.length > 0,
+      issuedAt: typeof decoded.iat === "number" ? decoded.iat : undefined,
+      expiresAt: exp,
+      isExpired: typeof exp === "number" ? exp <= Math.floor(Date.now() / 1000) : undefined,
+      expectedProjectId: projectId,
       issuer,
       audience,
-      issuerMatches: expectedProjectId ? issuer === `https://securetoken.google.com/${expectedProjectId}` : undefined,
-      audienceMatches: expectedProjectId ? audience === expectedProjectId : undefined,
+      issuerMatches: projectId ? issuer === `https://securetoken.google.com/${projectId}` : undefined,
+      audienceMatches: projectId ? audience === projectId : undefined,
     };
   } catch {
-    return { tokenShape: "invalid" };
+    return {
+      algorithm: undefined,
+      hasKeyId: false,
+      hasSubject: false,
+      issuedAt: undefined,
+      expiresAt: undefined,
+      isExpired: undefined,
+      expectedProjectId: expectedProjectId(),
+      issuer: undefined,
+      audience: undefined,
+      issuerMatches: undefined,
+      audienceMatches: undefined,
+    };
   }
 }
 
 function logVerificationFailure(idToken: string, error: { code: string; message?: string }): void {
-  if (process.env.NODE_ENV === "development") {
-    console.error("[firebase-auth] token verification failed", {
-      code: error.code,
-      message: error.message,
-      ...readTokenMetadata(idToken),
-    });
-  }
+  console.error("[firebase-auth] token verification failed", {
+    code: error.code,
+    message: error.message,
+    ...readTokenMetadata(idToken),
+  });
 }
 
 /** Install a (mock) verifier — used by the offline test harness. */
