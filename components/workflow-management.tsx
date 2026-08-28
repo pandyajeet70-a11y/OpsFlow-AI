@@ -61,7 +61,8 @@ export default function WorkflowManagement({ mode, id }: { mode: Mode; id?: stri
         const body = (await response.json()) as { data: RecordItem };
         setDetail(body.data);
       } else {
-        setItems(await getData(`/api/workflow/${mode}?limit=50`));
+        const resource = mode === "activity" ? "events" : mode;
+        setItems(await getData(`/api/workflow/${resource}?limit=50`));
       }
     } catch (cause) {
       setError(formatApiError(cause, "Unable to load workflow data."));
