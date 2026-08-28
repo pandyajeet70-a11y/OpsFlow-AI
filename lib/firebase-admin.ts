@@ -1,10 +1,19 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim();
-const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL?.trim();
-const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n").trim();
-const clientProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim();
+function cleanEnvValue(value: string | undefined): string | undefined {
+  const cleaned = value?.trim();
+  if (!cleaned) return undefined;
+  return cleaned.replace(/^("[\s\S]*"|'[\s\S]*')$/, (quoted) => quoted.slice(1, -1));
+}
+
+const projectId = cleanEnvValue(process.env.FIREBASE_ADMIN_PROJECT_ID);
+const clientEmail = cleanEnvValue(process.env.FIREBASE_ADMIN_CLIENT_EMAIL);
+const privateKey = cleanEnvValue(process.env.FIREBASE_ADMIN_PRIVATE_KEY)
+  ?.replace(/\\n/g, "\n")
+  .replace(/\r\n/g, "\n")
+  .trim();
+const clientProjectId = cleanEnvValue(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
 
 if (
   !projectId ||
@@ -20,16 +29,28 @@ if (
   throw error;
 }
 
-const adminApp =
-  getApps().length > 0
-    ? getApps()[0]
-    : initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
+let adminApp: App;
+try {
+  adminApp =
+    getApps().length > 0
+      ? getApps()[0]
+      : initializeApp({
+          credential: cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+} catch (error) {
+  const cause = error as { message?: string };
+  const configError = new Error(
+    process.env.NODE_ENV === "development"
+      ? `Firebase Admin initialization failed: ${cause.message ?? "unknown error"}`
+      : "Firebase Admin credentials are not configured."
+  ) as Error & { code: string };
+  configError.code = "opsflow/admin-config";
+  throw configError;
+}
 
 export { adminApp };
 

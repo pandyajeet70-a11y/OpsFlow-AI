@@ -51,9 +51,33 @@ export interface TokenVerifier {
 
 let verifier: TokenVerifier | null = null;
 
-function logVerificationFailure(code: string): void {
+function readTokenMetadata(idToken: string): Record<string, unknown> {
+  try {
+    const payload = idToken.split(".")[1];
+    if (!payload) return { tokenShape: "invalid" };
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+    const expectedProjectId = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim().replace(/^("[\s\S]*"|'[\s\S]*')$/, (quoted) => quoted.slice(1, -1));
+    const issuer = typeof decoded.iss === "string" ? decoded.iss : undefined;
+    const audience = typeof decoded.aud === "string" ? decoded.aud : undefined;
+    return {
+      expectedProjectId,
+      issuer,
+      audience,
+      issuerMatches: expectedProjectId ? issuer === `https://securetoken.google.com/${expectedProjectId}` : undefined,
+      audienceMatches: expectedProjectId ? audience === expectedProjectId : undefined,
+    };
+  } catch {
+    return { tokenShape: "invalid" };
+  }
+}
+
+function logVerificationFailure(idToken: string, error: { code: string; message?: string }): void {
   if (process.env.NODE_ENV === "development") {
-    console.error(`[firebase-auth] token verification failed: ${code}`);
+    console.error("[firebase-auth] token verification failed", {
+      code: error.code,
+      message: error.message,
+      ...readTokenMetadata(idToken),
+    });
   }
 }
 
@@ -96,14 +120,14 @@ export async function verifyIdToken(idToken: string): Promise<AuthenticatedUser>
     const raw = e as { code?: string; message?: string };
     const code = raw?.code ?? raw?.message ?? "unknown";
     if (code === "opsflow/admin-config") {
-      logVerificationFailure(code);
+      logVerificationFailure(idToken, { code, message: raw?.message });
       throw new AuthError(
         500,
         "AUTH_SERVER_MISCONFIGURED",
         "Authentication service is not configured."
       );
     }
-    logVerificationFailure(code);
+    logVerificationFailure(idToken, { code, message: raw?.message });
     // Firebase Auth error codes for expiry / invalid tokens.
     if (
       code === "auth/id-token-expired" ||
