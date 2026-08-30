@@ -248,6 +248,7 @@ export function useDashboardData() {
       setError(
         `Unable to load ${context.toLowerCase()}.`
       );
+      setLoading(false);
     };
 
     /* =====================================================
@@ -317,6 +318,7 @@ export function useDashboardData() {
 
               if (!snapshot.exists()) {
                 setProfile(null);
+                setLoading(false);
                 return;
               }
 
@@ -381,6 +383,7 @@ export function useDashboardData() {
                   totalUsers: 0,
                   activeWorkflows: 0,
                 });
+                setLoading(false);
 
                 return;
               }
