@@ -3,10 +3,11 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, CreditCard, ShieldCheck, Sparkles } from 'lucide-react';
 import AppShell from '@/components/app-shell';
+import AuthGuard from '@/components/auth-guard';
 
 export default function BillingPage() {
   return (
-    <AppShell>
+    <AuthGuard><AppShell>
       <div className="space-y-6">
         <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-6 backdrop-blur-2xl sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -30,8 +31,8 @@ export default function BillingPage() {
               <p className="mt-3 text-2xl font-semibold text-white">Next charge: Aug 24 • $1,490</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button className="rounded-full bg-white px-5 py-3 font-medium text-slate-950">Update card</button>
-              <button className="rounded-full border border-white/10 bg-white/10 px-5 py-3 font-medium text-slate-100">Download invoice</button>
+              <button type="button" disabled title="Billing provider is not configured." className="rounded-full bg-white px-5 py-3 font-medium text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">Update card</button>
+              <button type="button" disabled title="Billing provider is not configured." className="rounded-full border border-white/10 bg-white/10 px-5 py-3 font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Download invoice</button>
             </div>
           </motion.div>
 
@@ -58,12 +59,12 @@ export default function BillingPage() {
               <h3 className="text-2xl font-semibold text-white">Premium access to advanced AI controls</h3>
               <p className="mt-2 text-slate-300">Scale your operations without sacrificing clarity, governance, or speed.</p>
             </div>
-            <button className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 font-medium text-cyan-100">
+            <button type="button" disabled title="Billing provider is not configured." className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 font-medium text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50">
               Upgrade plan <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
       </div>
-    </AppShell>
+    </AppShell></AuthGuard>
   );
 }

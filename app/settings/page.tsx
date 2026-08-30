@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Lock, Palette, ShieldCheck, Zap } from 'lucide-react';
 import AppShell from '@/components/app-shell';
+import AuthGuard from '@/components/auth-guard';
+import Link from 'next/link';
 
 const settings = [
   { title: 'Security posture', desc: 'Protect your workspace with SSO and role-based governance.', icon: ShieldCheck },
@@ -12,7 +14,7 @@ const settings = [
 
 export default function SettingsPage() {
   return (
-    <AppShell>
+    <AuthGuard><AppShell>
       <div className="space-y-6">
         <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-6 backdrop-blur-2xl sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -48,12 +50,12 @@ export default function SettingsPage() {
               <h3 className="text-2xl font-semibold text-white">Role-based access and audit trails are active.</h3>
               <p className="mt-2 text-slate-300">Every change stays reviewable, secure, and ready for governance review.</p>
             </div>
-            <button className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 font-medium text-cyan-100">
+            <Link href="/dashboard/settings" className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 font-medium text-cyan-100">
               Review controls <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
       </div>
-    </AppShell>
+    </AppShell></AuthGuard>
   );
 }

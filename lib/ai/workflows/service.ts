@@ -35,8 +35,8 @@ export async function updateWorkflowStatus(
   return result as Record<string, unknown>;
 }
 
-export async function getRetryEligibility(executionId: string, actionId: string) {
-  const execution = await getExecutionDetails(executionId);
+export async function getRetryEligibility(executionId: string, actionId: string, organizationId?: string) {
+  const execution = await getExecutionDetails(executionId, organizationId);
   const action = execution?.actions?.find((candidate) => candidate.actionId === actionId);
   if (!action) return { eligible: false, attempt: 0, maxAttempts: 0, status: "missing" as const };
   return {

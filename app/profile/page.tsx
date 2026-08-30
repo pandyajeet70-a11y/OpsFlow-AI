@@ -11,8 +11,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import AuthGuard from "@/components/auth-guard";
 import AppShell from "@/components/app-shell";
 import { auth, db } from "@/lib/firebase";
+import { setDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth";
 
 type ProfileData = {
   name?: string;
@@ -24,6 +27,11 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let profileUnsubscribe: (() => void) | undefined;
@@ -45,9 +53,14 @@ export default function ProfilePage() {
         userRef,
         (snapshot) => {
           if (snapshot.exists()) {
-            setProfile(snapshot.data() as ProfileData);
+            const data = snapshot.data() as ProfileData;
+            setProfile(data);
+            setName(data.name ?? currentUser.displayName ?? "");
+            setCompanyName(data.company ?? "");
           } else {
             setProfile(null);
+            setName(currentUser.displayName ?? "");
+            setCompanyName("");
           }
 
           setLoading(false);
@@ -66,6 +79,26 @@ export default function ProfilePage() {
     };
   }, []);
 
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) return;
+    setSaving(true);
+    setMessage("");
+    try {
+      const nextName = name.trim() || "User";
+      const nextCompany = companyName.trim() || nextName;
+      await updateProfile(user, { displayName: nextName });
+      await setDoc(doc(db, "users", user.uid), { uid: user.uid, name: nextName, company: nextCompany, email: user.email ?? "" }, { merge: true });
+      setProfile({ name: nextName, company: nextCompany, email: user.email ?? "" });
+      setEditing(false);
+      setMessage("Profile saved.");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Unable to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const displayName =
     profile?.name ||
     user?.displayName ||
@@ -82,7 +115,7 @@ export default function ProfilePage() {
     "No company added";
 
   return (
-    <AppShell>
+    <AuthGuard><AppShell>
       <div className="space-y-6">
 
         {/* HEADER */}
@@ -190,11 +223,18 @@ export default function ProfilePage() {
 
             <button
               type="button"
+              onClick={() => { setMessage(""); setEditing((value) => !value); }}
               className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 font-medium text-cyan-100 transition hover:bg-cyan-400/20"
             >
               Edit profile
               <ArrowRight className="h-4 w-4" />
             </button>
+            {editing ? <form onSubmit={saveProfile} className="mt-4 space-y-3">
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" className="field w-full" required />
+              <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Company" className="field w-full" />
+              <button type="submit" disabled={saving} className="action-button disabled:opacity-60">{saving ? "Saving..." : "Save profile"}</button>
+            </form> : null}
+            {message ? <p className="mt-3 text-sm text-cyan-200">{message}</p> : null}
           </motion.div>
         </section>
 
@@ -214,6 +254,6 @@ export default function ProfilePage() {
         </section>
 
       </div>
-    </AppShell>
+    </AppShell></AuthGuard>
   );
 }

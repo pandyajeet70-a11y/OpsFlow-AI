@@ -22,7 +22,7 @@ export interface DashboardSummary {
 
 async function count(collection: string, organizationId?: string, field?: string, value?: string): Promise<number> {
   let query = adminDb.collection(collection) as FirebaseFirestore.Query;
-  if (organizationId && process.env.NODE_ENV !== "development") query = query.where("organizationId", "==", organizationId);
+  if (organizationId) query = query.where("organizationId", "==", organizationId);
   if (field && value) query = query.where(field, "==", value);
   const snapshot = await query.count().get();
   return snapshot.data().count;

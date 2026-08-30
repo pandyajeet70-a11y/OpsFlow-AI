@@ -32,7 +32,7 @@ async function listCollection(
 ): Promise<WorkflowDocument[]> {
   const limit = Math.min(100, Math.max(1, options.limit ?? 25));
   let query: FirebaseFirestore.Query = adminDb.collection(collection);
-  if (options.organizationId && process.env.NODE_ENV !== "development") query = query.where("organizationId", "==", options.organizationId);
+  if (options.organizationId) query = query.where("organizationId", "==", options.organizationId);
   const snapshot = await query
     .orderBy(orderField, "desc")
     .limit(limit)
@@ -49,7 +49,7 @@ export async function listRecentHandoffs(options?: WorkflowQueryOptions): Promis
 
 export async function getHandoffById(id: string, organizationId?: string): Promise<WorkflowDocument | null> {
   const document = await adminDb.collection("handoffs").doc(id).get();
-  return document.exists && (!organizationId || process.env.NODE_ENV === "development" || document.data()?.organizationId === organizationId)
+  return document.exists && (!organizationId || document.data()?.organizationId === organizationId)
     ? { id: document.id, ...(normalize(document.data()) as Record<string, unknown>) }
     : null;
 }
@@ -68,7 +68,7 @@ export async function listExecutions(options?: WorkflowQueryOptions): Promise<Ex
 
 export async function getExecutionDetails(id: string, organizationId?: string): Promise<Execution | null> {
   const document = await adminDb.collection("executions").doc(id).get();
-  return document.exists && (!organizationId || process.env.NODE_ENV === "development" || document.data()?.organizationId === organizationId)
+  return document.exists && (!organizationId || document.data()?.organizationId === organizationId)
     ? ({ id: document.id, ...(normalize(document.data()) as Record<string, unknown>) } as unknown as Execution)
     : null;
 }
@@ -87,7 +87,7 @@ export async function listAuditRecords(options?: WorkflowQueryOptions): Promise<
 
 export async function getApprovalById(id: string, organizationId?: string): Promise<WorkflowDocument | null> {
   const document = await adminDb.collection("approvals").doc(id).get();
-  return document.exists && (!organizationId || process.env.NODE_ENV === "development" || document.data()?.organizationId === organizationId)
+  return document.exists && (!organizationId || document.data()?.organizationId === organizationId)
     ? { id: document.id, ...(normalize(document.data()) as Record<string, unknown>) }
     : null;
 }

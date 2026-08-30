@@ -70,6 +70,10 @@ export default function SignInPage() {
           </button>
         </form>
 
+        <p className="mt-4 text-center text-sm text-slate-400">
+          <Link href="/forgot-password" className="text-cyan-300">Forgot password?</Link>
+        </p>
+
         <p className="mt-6 text-center text-sm text-slate-400">
           No account yet?{' '}
           <Link href="/signup" className="text-cyan-300">

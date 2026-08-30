@@ -4,6 +4,7 @@ import { Bell, ClipboardCheck, FileText, ListChecks, LogOut, Menu, Search, Setti
 import { ReactNode } from "react";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "./auth-provider";
 import Link from "next/link";
@@ -17,6 +18,8 @@ export default function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const { user } = useAuth();
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const handleLogout = async () => {
     try {
@@ -43,6 +46,9 @@ export default function AppShell({ children }: AppShellProps) {
           <div className="flex items-center gap-4">
             <button
               type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-expanded={menuOpen}
+              aria-label="Toggle navigation"
               className="rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-200 transition hover:bg-white/10"
             >
               <Menu className="h-5 w-5" />
@@ -66,7 +72,9 @@ export default function AppShell({ children }: AppShellProps) {
               <Search className="h-4 w-4 text-slate-400" />
 
               <input
-                type="text"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search"
                 className="w-32 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
               />
@@ -75,6 +83,8 @@ export default function AppShell({ children }: AppShellProps) {
             {/* NOTIFICATION */}
             <button
               type="button"
+              onClick={() => router.push("/notifications")}
+              aria-label="Open notifications"
               className="rounded-full border border-white/10 bg-white/5 p-3 text-slate-300 transition hover:bg-white/10"
             >
               <Bell className="h-5 w-5" />
@@ -114,7 +124,7 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* MAIN CONTENT */}
       <main className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
-        <nav className="mb-6 flex gap-2 overflow-x-auto border-b border-white/10 pb-3">
+        <nav className={`${menuOpen ? "flex" : "hidden"} mb-6 gap-2 overflow-x-auto border-b border-white/10 pb-3 sm:flex`}>
           {[
             ["/dashboard", "Dashboard", Workflow],
             ["/dashboard/handoffs", "Handoffs", FileText],
@@ -122,7 +132,7 @@ export default function AppShell({ children }: AppShellProps) {
             ["/dashboard/approvals", "Approvals", ClipboardCheck],
             ["/dashboard/activity", "Activity", ListChecks],
             ["/dashboard/settings", "Settings", Settings],
-          ].map(([href, label, Icon]) => (
+          ].filter(([, label]) => !search || String(label).toLowerCase().includes(search.toLowerCase())).map(([href, label, Icon]) => (
             <Link key={href as string} href={href as string} className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm transition ${pathname === href ? "bg-cyan-400/15 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>
               <Icon className="h-4 w-4" />{label as string}
             </Link>

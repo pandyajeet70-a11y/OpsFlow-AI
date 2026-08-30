@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Activity, ArrowUpRight, BarChart3, BrainCircuit, Sparkles, TrendingUp } from 'lucide-react';
 import AppShell from '@/components/app-shell';
+import AuthGuard from '@/components/auth-guard';
 
 const metrics = [
   { label: 'Qualified leads', value: '1,284', delta: '+18.4%' },
@@ -12,7 +13,7 @@ const metrics = [
 
 export default function AnalyticsPage() {
   return (
-    <AppShell>
+    <AuthGuard><AppShell>
       <div className="space-y-6">
         <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-6 backdrop-blur-2xl sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -88,6 +89,6 @@ export default function AnalyticsPage() {
           </div>
         </section>
       </div>
-    </AppShell>
+    </AppShell></AuthGuard>
   );
 }

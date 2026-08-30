@@ -250,6 +250,11 @@ export async function POST(req: NextRequest) {
      ------------------------------------------------------- */
 
   if (rawBody.preview === true) {
+    try {
+      await getAuthenticatedUser(req);
+    } catch (error) {
+      return authErrorResponse(error);
+    }
     const routing = previewRouting(validated.prompt);
 
     return NextResponse.json(

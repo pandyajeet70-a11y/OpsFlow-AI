@@ -148,6 +148,8 @@ export default function DashboardPage() {
   const [assistantAction, setAssistantAction] = useState<AssistantAction | null>(null);
   const [assistantResult, setAssistantResult] = useState<string | null>(null);
   const [assistantError, setAssistantError] = useState<string | null>(null);
+  const [builderSaving, setBuilderSaving] = useState(false);
+  const [builderMessage, setBuilderMessage] = useState("");
 
   const [builderPrompt, setBuilderPrompt] =
     useState(
@@ -196,6 +198,20 @@ export default function DashboardPage() {
       setAssistantError(formatApiError(cause, "Unable to complete assistant check."));
     } finally {
       setAssistantAction(null);
+    }
+  };
+
+  const createSuggestedWorkflow = async () => {
+    setBuilderSaving(true);
+    setBuilderMessage("");
+    try {
+      const response = await authFetch("/api/workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: `${builderSuggestion.triggerLabel} workflow`, description: builderPrompt.trim() || "Generated workflow", trigger: builderSuggestion.triggerLabel, triggerType: builderSuggestion.trigger, actions: builderSuggestion.actions }) });
+      if (!response.ok) throw await responseError(response, "Unable to create workflow.");
+      setBuilderMessage("Workflow created and added to Recent Workflows.");
+    } catch (cause) {
+      setBuilderMessage(formatApiError(cause, "Unable to create workflow."));
+    } finally {
+      setBuilderSaving(false);
     }
   };
 
@@ -731,6 +747,11 @@ export default function DashboardPage() {
                 >
                   Generate workflow
                 </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                {builderMessage ? <p className="text-sm text-cyan-200">{builderMessage}</p> : null}
+                <button type="button" onClick={() => void createSuggestedWorkflow()} disabled={builderSaving || builderSuggestion.actions.length === 0} className="action-button disabled:cursor-not-allowed disabled:opacity-60">{builderSaving ? "Creating..." : "Create workflow"}</button>
               </div>
 
               <div className="rounded-[1.2rem] border border-white/10 bg-white/5 p-4">

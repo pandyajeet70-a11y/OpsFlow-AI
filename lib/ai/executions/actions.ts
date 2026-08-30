@@ -240,11 +240,12 @@ export async function getWorkflowAction(executionId: string, actionId: string): 
 export async function retryWorkflowAction(input: {
   executionId: string;
   actionId: string;
+  organizationId?: string;
 }): Promise<WorkflowAction> {
   const store = getDefaultExecutionStore();
   const execution = await store.getExecution(input.executionId);
   const action = execution?.actions?.find((candidate) => candidate.actionId === input.actionId);
-  if (!execution || !action) throw new Error("Workflow action was not found.");
+  if (!execution || !action || (input.organizationId && execution.organizationId !== input.organizationId)) throw new Error("Workflow action was not found.");
   if (action.status !== "failed") throw new Error("Only failed actions can be retried.");
   if (action.attempt >= action.maxAttempts) throw new Error("Workflow action reached its maximum attempts.");
 

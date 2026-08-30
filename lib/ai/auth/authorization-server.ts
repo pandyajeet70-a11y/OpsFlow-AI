@@ -7,6 +7,7 @@ import type { OrgRole } from "./types";
 
 export type Permission =
   | "view_workflows"
+  | "manage_workflows"
   | "create_leads"
   | "create_handoffs"
   | "manage_handoffs"
@@ -27,8 +28,8 @@ export interface AuthorizationContext {
 }
 
 const permissionMap: Record<OrgRole, readonly Permission[]> = {
-  owner: ["view_workflows", "create_leads", "create_handoffs", "manage_handoffs", "manage_onboarding", "approve_actions", "retry_actions", "manage_organization", "view_integrations", "manage_members", "view_audit"],
-  admin: ["view_workflows", "create_leads", "create_handoffs", "manage_handoffs", "manage_onboarding", "approve_actions", "retry_actions", "manage_organization", "view_integrations", "manage_members", "view_audit"],
+  owner: ["view_workflows", "manage_workflows", "create_leads", "create_handoffs", "manage_handoffs", "manage_onboarding", "approve_actions", "retry_actions", "manage_organization", "view_integrations", "manage_members", "view_audit"],
+  admin: ["view_workflows", "manage_workflows", "create_leads", "create_handoffs", "manage_handoffs", "manage_onboarding", "approve_actions", "retry_actions", "manage_organization", "view_integrations", "manage_members", "view_audit"],
   sales: ["view_workflows", "create_leads", "create_handoffs", "manage_handoffs"],
   customer_success: ["view_workflows", "manage_onboarding", "retry_actions", "view_audit"],
   viewer: ["view_workflows", "view_audit", "view_integrations"],

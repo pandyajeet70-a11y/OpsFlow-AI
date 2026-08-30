@@ -27,12 +27,14 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/components/auth-provider";
 import type {
   ActivityItem,
   NotificationItem,
   UserProfile,
   WorkflowItem,
 } from "@/hooks/useDashboardData";
+import { authFetch, responseError } from "@/lib/client/auth";
 
 const emptyForm = {
   name: "",
@@ -146,19 +148,11 @@ const executeAction = async (
   executionId: string
 ): Promise<void> => {
   if (typeof action === "string") {
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 700);
-    });
-
-    return;
+    throw new Error(`Action "${action}" has no executable tool configured.`);
   }
 
   if (!isWebhookAction(action)) {
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 700);
-    });
-
-    return;
+    throw new Error("This workflow action is not executable.");
   }
 
   const response = await fetch(action.url, {
@@ -227,6 +221,7 @@ export default function WorkflowManager({
   currentUser,
   profile,
 }: WorkflowManagerProps) {
+  const { can } = useAuth();
   const [form, setForm] = useState<WorkflowFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -389,15 +384,12 @@ export default function WorkflowManager({
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, "workflows", editingId), {
-          name,
-          description,
-          trigger: trigger || "Manual trigger",
-          triggerType,
-          actions,
-          status: form.trigger ? "active" : "paused",
-          updatedAt: serverTimestamp(),
+        const response = await authFetch(`/api/workflows/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, description, trigger: trigger || "Manual trigger", triggerType, actions, status: form.trigger ? "active" : "paused" }),
         });
+        if (!response.ok) throw await responseError(response, "Unable to update workflow.");
 
         await addActivity(
           currentUser.uid,
@@ -406,17 +398,12 @@ export default function WorkflowManager({
 
         setSuccess("Workflow updated successfully.");
       } else {
-        await addDoc(collection(db, "workflows"), {
-          userId: currentUser.uid,
-          name,
-          description,
-          status: "active",
-          trigger: trigger || "Manual trigger",
-          triggerType,
-          actions,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+        const response = await authFetch("/api/workflows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, description, trigger: trigger || "Manual trigger", triggerType, actions }),
         });
+        if (!response.ok) throw await responseError(response, "Unable to create workflow.");
 
         await addActivity(
           currentUser.uid,
@@ -475,10 +462,12 @@ export default function WorkflowManager({
     setSuccess("");
 
     try {
-      await updateDoc(doc(db, "workflows", workflow.id), {
-        status: nextStatus,
-        updatedAt: serverTimestamp(),
+      const response = await authFetch(`/api/workflows/${workflow.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
       });
+      if (!response.ok) throw await responseError(response, "Unable to update workflow status.");
 
       await addActivity(
         currentUser.uid,
@@ -515,7 +504,8 @@ export default function WorkflowManager({
     setSuccess("");
 
     try {
-      await deleteDoc(doc(db, "workflows", workflow.id));
+      const response = await authFetch(`/api/workflows/${workflow.id}`, { method: "DELETE" });
+      if (!response.ok) throw await responseError(response, "Unable to delete workflow.");
       await addActivity(
         currentUser.uid,
         `Workflow "${workflow.name}" was deleted.`
@@ -590,32 +580,7 @@ export default function WorkflowManager({
             continue;
           }
 
-          currentActionName = trimmed;
-
-          await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-            currentAction: trimmed,
-            completedActions: index,
-            status: "running",
-            errorMessage: null,
-          });
-
-          await new Promise((resolve) => {
-            window.setTimeout(resolve, 700);
-          });
-
-          await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-            currentAction: trimmed,
-            completedActions: index + 1,
-            status: "running",
-            errorMessage: null,
-          });
-
-          await addActivity(
-            currentUser.uid,
-            `Workflow "${workflow.name}": action "${trimmed}" completed.`
-          );
-
-          continue;
+          throw new Error(`Action "${trimmed}" has no executable tool configured.`);
         }
 
         const webhookAction = isWebhookAction(action)
@@ -869,7 +834,7 @@ export default function WorkflowManager({
           {workflows.length} workflow{workflows.length === 1 ? "" : "s"}
         </p>
 
-        <button
+        {can("manage_workflows") ? <button
           type="button"
           onClick={() => {
             setShowCreateForm((previous) => !previous);
@@ -884,7 +849,7 @@ export default function WorkflowManager({
         >
           <Plus className="h-4 w-4" />
           {showCreateForm ? "Hide form" : "Create workflow"}
-        </button>
+        </button> : null}
       </div>
 
       {workflows.length === 0 ? (
@@ -998,16 +963,16 @@ export default function WorkflowManager({
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
+                  {can("manage_workflows") ? <button
                     type="button"
                     onClick={() => handleEdit(workflow)}
                     className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/10"
                   >
                     <Pencil className="h-4 w-4" />
                     Edit
-                  </button>
+                  </button> : null}
 
-                  <button
+                  {can("manage_workflows") ? <button
                     type="button"
                     onClick={() => handleToggleStatus(workflow)}
                     disabled={busyId === workflow.id}
@@ -1019,9 +984,9 @@ export default function WorkflowManager({
                       <CheckCircle2 className="h-4 w-4" />
                     )}
                     {workflow.status === "active" ? "Pause" : "Activate"}
-                  </button>
+                  </button> : null}
 
-                  <button
+                  {can("manage_workflows") ? <button
                     type="button"
                     onClick={() => handleRun(workflow)}
                     disabled={
@@ -1034,7 +999,7 @@ export default function WorkflowManager({
                     {runningWorkflowIdsRef.current.has(workflow.id)
                       ? "Running..."
                       : "Run workflow"}
-                  </button>
+                  </button> : null}
 
                   <button
                     type="button"
