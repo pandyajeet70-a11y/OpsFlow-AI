@@ -16,6 +16,8 @@ import {
   Workflow,
 } from "lucide-react";
 import useWorkflowDashboard from "@/hooks/useWorkflowDashboard";
+import { authFetch, formatApiError, responseError } from "@/lib/client/auth";
+import { fetchDashboardSummary } from "@/lib/client/workflow-api";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -34,6 +36,14 @@ type WorkflowSuggestion = {
   trigger: "manual" | "new_customer";
   triggerLabel: string;
   actions: string[];
+};
+
+type AssistantAction = "health" | "workflow" | "activity";
+
+type ExecutionSummary = {
+  status?: string;
+  workflowName?: string;
+  currentAction?: string | null;
 };
 
 const parseWorkflowPrompt = (
@@ -135,6 +145,9 @@ export default function DashboardPage() {
     error,
   } = useDashboardData();
   const workflowDashboard = useWorkflowDashboard();
+  const [assistantAction, setAssistantAction] = useState<AssistantAction | null>(null);
+  const [assistantResult, setAssistantResult] = useState<string | null>(null);
+  const [assistantError, setAssistantError] = useState<string | null>(null);
 
   const [builderPrompt, setBuilderPrompt] =
     useState(
@@ -147,6 +160,44 @@ export default function DashboardPage() {
         "when a new customer joins create customer profile"
       )
     );
+
+  const runAssistantAction = async (action: AssistantAction) => {
+    setAssistantAction(action);
+    setAssistantResult(null);
+    setAssistantError(null);
+
+    try {
+      if (action === "health") {
+        const summary = await fetchDashboardSummary();
+        const { metrics } = summary;
+        setAssistantResult(
+          `${metrics.pendingApprovals} pending approval(s), ${metrics.pendingTasks} pending task(s), and ${metrics.failedActions} failed action(s).`
+        );
+      } else if (action === "workflow") {
+        const response = await authFetch("/api/workflow/executions?limit=10", { cache: "no-store" });
+        if (!response.ok) throw await responseError(response, "Unable to check active workflows.");
+        const body = (await response.json()) as { data?: ExecutionSummary[] };
+        const active = (body.data ?? []).filter((execution) => ["pending", "running", "waiting_for_approval", "retrying"].includes(execution.status ?? ""));
+        setAssistantResult(
+          active.length
+            ? `${active.length} active workflow run(s). Latest: ${active[0].workflowName || "Unnamed workflow"}${active[0].currentAction ? `, currently ${active[0].currentAction}` : "."}`
+            : "No active workflow runs were found."
+        );
+      } else {
+        const summary = await fetchDashboardSummary();
+        const latest = summary.recentActivity[0];
+        setAssistantResult(
+          latest
+            ? `Latest activity: ${String(latest.eventType ?? latest.name ?? latest.status ?? "Workflow update")}.`
+            : "No recent system activity was found."
+        );
+      }
+    } catch (cause) {
+      setAssistantError(formatApiError(cause, "Unable to complete assistant check."));
+    } finally {
+      setAssistantAction(null);
+    }
+  };
 
   /* =====================================================
      USER / PROFILE
@@ -305,6 +356,7 @@ export default function DashboardPage() {
                   : "Awaiting Firestore sync"
               }
               tone="cyan"
+              href="/analytics"
             />
 
             <StatsCard
@@ -320,6 +372,7 @@ export default function DashboardPage() {
                   : "Awaiting Firestore sync"
               }
               tone="violet"
+              href="/dashboard/executions"
             />
 
             <StatsCard
@@ -335,6 +388,7 @@ export default function DashboardPage() {
                   : "No alerts"
               }
               tone="emerald"
+              href="/settings"
             />
 
           </section>
@@ -476,13 +530,13 @@ export default function DashboardPage() {
 
                 <p className="text-sm leading-6 text-slate-300">
 
-                  {error
+                  {assistantError || assistantResult || (error
                     ? "Realtime data is temporarily unavailable."
                     : `Your workspace is synced for ${displayName}. Suggested next action: review the latest ${
                         notifications.length
                           ? "alerts"
                           : "updates"
-                      }.`}
+                      }.`)}
 
                 </p>
 
@@ -490,20 +544,17 @@ export default function DashboardPage() {
 
               <div className="mt-4 space-y-3">
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
-                  {notifications[0]?.title ||
-                    "Review workspace health"}
-                </div>
+                <button type="button" onClick={() => void runAssistantAction("health")} disabled={assistantAction !== null} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:cursor-wait disabled:opacity-60">
+                  {assistantAction === "health" ? "Reviewing workspace health..." : "Review workspace health"}
+                </button>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
-                  {recentWorkflows[0]?.name ||
-                    "Check active workflow"}
-                </div>
+                <button type="button" onClick={() => void runAssistantAction("workflow")} disabled={assistantAction !== null} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:cursor-wait disabled:opacity-60">
+                  {assistantAction === "workflow" ? "Checking active workflow..." : "Check active workflow"}
+                </button>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
-                  {activity[0]?.message ||
-                    "Check latest system activity"}
-                </div>
+                <button type="button" onClick={() => void runAssistantAction("activity")} disabled={assistantAction !== null} className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:cursor-wait disabled:opacity-60">
+                  {assistantAction === "activity" ? "Checking latest system activity..." : "Check latest system activity"}
+                </button>
 
               </div>
 
