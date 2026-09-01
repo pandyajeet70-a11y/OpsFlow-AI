@@ -15,6 +15,33 @@ import type { ToolDefinition } from "./types";
 
 const tools = new Map<string, ToolDefinition>();
 
+const toolAliases: Record<string, string> = {
+  "create customer profile": "create_lead",
+  "create profile": "create_lead",
+  "customer profile": "create_lead",
+  "prepare sales handoff": "create_customer_handoff",
+  "prepare customer handoff": "create_customer_handoff",
+  "create customer handoff": "create_customer_handoff",
+  "sales handoff": "create_customer_handoff",
+  "send welcome email": "send_email",
+  "send email": "send_email",
+  "welcome email": "send_email",
+  "notify team": "send_email",
+  "assign owner": "create_customer_handoff",
+  "sync customer record": "crm_create_contact",
+  "create campaign": "create_campaign",
+  "create lead": "create_lead",
+};
+
+function normalizeToolToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /* =========================================================
    Register
    ========================================================= */
@@ -41,6 +68,41 @@ export function getTool(
   toolId: string
 ): ToolDefinition | undefined {
   return tools.get(toolId);
+}
+
+export function resolveToolId(rawToolId: string | null | undefined): string | null {
+  if (typeof rawToolId !== "string") {
+    return null;
+  }
+
+  const trimmed = rawToolId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (tools.has(trimmed)) {
+    return trimmed;
+  }
+
+  const normalized = normalizeToolToken(trimmed);
+  if (!normalized) {
+    return null;
+  }
+
+  const alias = toolAliases[normalized];
+  if (alias && tools.has(alias)) {
+    return alias;
+  }
+
+  for (const tool of tools.values()) {
+    const toolName = normalizeToolToken(tool.name);
+    const toolKey = normalizeToolToken(tool.id);
+    if (toolName === normalized || toolKey === normalized) {
+      return tool.id;
+    }
+  }
+
+  return alias ?? null;
 }
 
 /* =========================================================

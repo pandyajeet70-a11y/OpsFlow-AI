@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/auth/authorization-server";
 import { getDefaultExecutionStore } from "@/lib/ai/executions/firestore-store";
 import { executeTool } from "@/lib/ai/tools/executor";
+import { resolveToolId } from "@/lib/ai/tools/registry";
 
 export const runtime = "nodejs";
 
@@ -22,16 +23,28 @@ async function getOwnedWorkflow(request: NextRequest, workflowId: string) {
 
 function normalizeWorkflowAction(action: unknown): { toolId: string; input: Record<string, unknown> } | null {
   if (typeof action === "string" && action.trim()) {
-    return { toolId: action.trim(), input: {} };
+    const toolId = resolveToolId(action);
+    if (!toolId) return null;
+    return { toolId, input: {} };
   }
   if (action && typeof action === "object") {
     const candidate = action as Record<string, unknown>;
+    const rawToolId =
+      typeof candidate.toolId === "string"
+        ? candidate.toolId
+        : typeof candidate.id === "string"
+          ? candidate.id
+          : typeof candidate.name === "string"
+            ? candidate.name
+            : null;
+    const toolId = rawToolId ? resolveToolId(rawToolId) : null;
+    if (!toolId) return null;
     const type = typeof candidate.type === "string" ? candidate.type : "";
     if (type === "webhook") {
       const url = typeof candidate.url === "string" ? candidate.url : "";
       if (!url) return null;
       return {
-        toolId: "send_webhook",
+        toolId: resolveToolId("send_webhook") ?? "send_webhook",
         input: {
           url,
           method: candidate.method === "GET" || candidate.method === "POST" ? candidate.method : "POST",
@@ -39,6 +52,7 @@ function normalizeWorkflowAction(action: unknown): { toolId: string; input: Reco
         },
       };
     }
+    return { toolId, input: (candidate.input as Record<string, unknown>) ?? {} };
   }
   return null;
 }

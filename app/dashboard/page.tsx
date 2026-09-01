@@ -18,6 +18,7 @@ import {
 import useWorkflowDashboard from "@/hooks/useWorkflowDashboard";
 import { authFetch, formatApiError, responseError } from "@/lib/client/auth";
 import { fetchDashboardSummary } from "@/lib/client/workflow-api";
+import { resolveToolId } from "@/lib/ai/tools/registry";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -100,7 +101,7 @@ const parseWorkflowPrompt = (
       trigger === "new_customer"
         ? "New customer"
         : "Manual",
-    actions: suggestions,
+    actions: suggestions.map((action) => resolveToolId(action) ?? action),
   };
 };
 

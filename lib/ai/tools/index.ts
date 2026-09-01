@@ -12,6 +12,7 @@ export {
   getTool,
   hasTool,
   listTools,
+  resolveToolId,
   registerTool,
   unregisterTool,
 } from "./registry";
