@@ -6,6 +6,22 @@ import { validateWorkflowActions } from "@/lib/ai/workflows/validation";
 
 export const runtime = "nodejs";
 
+export async function GET(request: NextRequest) {
+  try {
+    const context = await requirePermission(request, "view_workflows");
+    const snapshot = await adminDb.collection("workflows")
+      .where("organizationId", "==", context.organizationId)
+      .orderBy("createdAt", "desc")
+      .limit(100)
+      .get();
+    return NextResponse.json({ data: snapshot.docs.map((document) => ({ id: document.id, ...document.data() })) });
+  } catch (error) {
+    if (isAuthorizationError(error)) return authorizationErrorResponse(error);
+    console.error("[workflows] list failed", error);
+    return NextResponse.json({ error: "Unable to load workflows." }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await requirePermission(request, "manage_workflows");

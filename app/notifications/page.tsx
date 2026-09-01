@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Bell, CheckCircle2, Clock3, Sparkles } from "lucide-react";
-import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import AuthGuard from "@/components/auth-guard";
 import AppShell from "@/components/app-shell";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { authFetch, responseError } from "@/lib/client/auth";
 
 type Notification = {
   id: string;
@@ -22,9 +22,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let unsubscribeNotifications: (() => void) | undefined;
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      unsubscribeNotifications?.();
       setUser(currentUser);
       if (!currentUser) {
         setNotifications([]);
@@ -32,20 +30,13 @@ export default function NotificationsPage() {
         return;
       }
       setLoading(true);
-      unsubscribeNotifications = onSnapshot(
-        query(collection(db, "notifications"), where("userId", "==", currentUser.uid)),
-        (snapshot) => {
-          setNotifications(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<Notification, "id">) })));
-          setLoading(false);
-        },
-        () => {
-          setError("Unable to load notifications.");
-          setLoading(false);
-        }
-      );
+      void authFetch("/api/dashboard/data", { cache: "no-store" }).then(async (response) => {
+        if (!response.ok) throw await responseError(response, "Unable to load notifications.");
+        const body = await response.json() as { data?: { notifications?: Notification[] } };
+        setNotifications(body.data?.notifications ?? []);
+      }).catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to load notifications.")).finally(() => setLoading(false));
     });
     return () => {
-      unsubscribeNotifications?.();
       unsubscribeAuth();
     };
   }, []);
@@ -53,7 +44,9 @@ export default function NotificationsPage() {
   const markRead = async (notificationId: string) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, "notifications", notificationId), { read: true });
+      const response = await authFetch(`/api/notifications/${notificationId}`, { method: "PATCH" });
+      if (!response.ok) throw await responseError(response, "Unable to update notification.");
+      setNotifications((current) => current.map((item) => item.id === notificationId ? { ...item, read: true } : item));
     } catch {
       setError("Unable to update notification.");
     }

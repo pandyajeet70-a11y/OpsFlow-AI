@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       steps: normalized.map((action, index) => ({
         stepId: `step_${index + 1}_${action.toolId}`,
         type: "tool",
-        actionId: action.toolId,
+        actionId: `action_${index + 1}_${action.toolId}`,
         actionName: action.toolId,
       })),
       metadata: { workflowId, workflowName: typeof workflow.name === "string" ? workflow.name : "Workflow" },

@@ -66,6 +66,30 @@ export async function listExecutions(options?: WorkflowQueryOptions): Promise<Ex
   return (await listCollection("executions", options)) as unknown as Execution[];
 }
 
+export async function listWorkflows(options?: WorkflowQueryOptions): Promise<WorkflowDocument[]> {
+  return listCollection("workflows", options);
+}
+
+export async function listUserCollection(
+  collection: string,
+  userId: string,
+  options: WorkflowQueryOptions = {},
+  orderField = "createdAt"
+): Promise<WorkflowDocument[]> {
+  const limit = Math.min(100, Math.max(1, options.limit ?? 25));
+  let query: FirebaseFirestore.Query = adminDb.collection(collection)
+    .where("userId", "==", userId);
+  if (options.organizationId) query = query.where("organizationId", "==", options.organizationId);
+  const snapshot = await query
+    .orderBy(orderField, "desc")
+    .limit(limit)
+    .get();
+  return snapshot.docs.map((document) => ({
+    id: document.id,
+    ...(normalize(document.data()) as Record<string, unknown>),
+  }));
+}
+
 export async function getExecutionDetails(id: string, organizationId?: string): Promise<Execution | null> {
   const document = await adminDb.collection("executions").doc(id).get();
   return document.exists && (!organizationId || document.data()?.organizationId === organizationId)

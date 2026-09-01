@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -13,8 +12,8 @@ import {
 
 import AuthGuard from "@/components/auth-guard";
 import AppShell from "@/components/app-shell";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { authFetch, responseError } from "@/lib/client/auth";
 import { updateProfile } from "firebase/auth";
 
 type ProfileData = {
@@ -34,11 +33,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    let profileUnsubscribe: (() => void) | undefined;
-
     const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      profileUnsubscribe?.();
-
       if (!currentUser) {
         setUser(null);
         setProfile(null);
@@ -48,33 +43,14 @@ export default function ProfilePage() {
 
       setUser(currentUser);
 
-      const userRef = doc(db, "users", currentUser.uid);
-      profileUnsubscribe = onSnapshot(
-        userRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data() as ProfileData;
-            setProfile(data);
-            setName(data.name ?? currentUser.displayName ?? "");
-            setCompanyName(data.company ?? "");
-          } else {
-            setProfile(null);
-            setName(currentUser.displayName ?? "");
-            setCompanyName("");
-          }
-
-          setLoading(false);
-        },
-        (error) => {
-          console.error("Failed to load profile:", error);
-          setProfile(null);
-          setLoading(false);
-        }
-      );
+      void authFetch("/api/profile", { cache: "no-store" }).then(async (response) => {
+        if (!response.ok) throw await responseError(response, "Unable to load profile.");
+        const data = (await response.json() as { data?: ProfileData | null }).data;
+        setProfile(data ?? null); setName(data?.name ?? currentUser.displayName ?? ""); setCompanyName(data?.company ?? "");
+      }).catch((cause) => { setProfile(null); setMessage(cause instanceof Error ? cause.message : "Unable to load profile."); }).finally(() => setLoading(false));
     });
 
     return () => {
-      profileUnsubscribe?.();
       authUnsubscribe();
     };
   }, []);
@@ -88,7 +64,8 @@ export default function ProfilePage() {
       const nextName = name.trim() || "User";
       const nextCompany = companyName.trim() || nextName;
       await updateProfile(user, { displayName: nextName });
-      await setDoc(doc(db, "users", user.uid), { uid: user.uid, name: nextName, company: nextCompany, email: user.email ?? "" }, { merge: true });
+      const response = await authFetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nextName, company: nextCompany }) });
+      if (!response.ok) throw await responseError(response, "Unable to save profile.");
       setProfile({ name: nextName, company: nextCompany, email: user.email ?? "" });
       setEditing(false);
       setMessage("Profile saved.");

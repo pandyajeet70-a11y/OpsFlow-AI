@@ -626,6 +626,7 @@ export default function DashboardPage() {
                 workflows={workflows}
                 activity={activity}
                 notifications={notifications}
+                executionHistory={executionHistory}
                 currentUser={currentUser}
                 profile={profile}
               />

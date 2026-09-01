@@ -13,20 +13,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { User } from "firebase/auth";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/auth-provider";
 import type {
   ActivityItem,
@@ -50,6 +37,7 @@ type WorkflowManagerProps = {
   workflows: WorkflowItem[];
   activity: ActivityItem[];
   notifications: NotificationItem[];
+  executionHistory?: WorkflowExecutionItem[];
   currentUser: User | null;
   profile: UserProfile | null;
 };
@@ -68,14 +56,14 @@ type WorkflowWebhookAction = {
   body?: unknown;
 };
 
-type WorkflowAction = string | WorkflowWebhookAction;
+type WorkflowAction = string | WorkflowWebhookAction | { toolId: string; input?: Record<string, unknown> };
 
 type WorkflowExecutionItem = {
   id: string;
-  workflowId: string;
+  workflowId?: string;
   userId?: string;
   workflowName?: string;
-  status?: WorkflowExecutionStatus | "not_started";
+  status?: string;
   startedAt?: unknown;
   completedAt?: unknown;
   currentAction?: string | null;
@@ -138,6 +126,10 @@ const getActionLabel = (action: WorkflowAction) => {
     return action;
   }
 
+  if ("toolId" in action) {
+    return action.toolId;
+  }
+
   return `${action.method ?? "GET"} ${action.url}`;
 };
 
@@ -157,18 +149,19 @@ const addActivity = async (
   message: string
 ) => {
   if (!userId) return;
-
-  await addDoc(collection(db, "activity"), {
-    userId,
-    message,
-    timestamp: serverTimestamp(),
+  const response = await authFetch("/api/activity", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
   });
+  if (!response.ok) throw await responseError(response, "Unable to save activity.");
 };
 
 export default function WorkflowManager({
   workflows,
   activity,
   notifications,
+  executionHistory,
   currentUser,
   profile,
 }: WorkflowManagerProps) {
@@ -227,75 +220,12 @@ export default function WorkflowManager({
   }, [currentUser?.uid, profile?.uid, workflows]);
 
   useEffect(() => {
-    if (!currentUser?.uid) {
-      setExecutionMap({});
-      return;
+    const nextExecutionMap: Record<string, WorkflowExecutionItem> = {};
+    for (const execution of executionHistory ?? []) {
+      if (execution.workflowId) nextExecutionMap[execution.workflowId] = execution;
     }
-
-    const executionsQuery = query(
-      collection(db, "workflowExecutions"),
-      where("userId", "==", currentUser.uid)
-    );
-
-    const unsubscribe = onSnapshot(
-      executionsQuery,
-      (snapshot) => {
-        const nextExecutionMap: Record<string, WorkflowExecutionItem> = {};
-
-        snapshot.docs.forEach((document) => {
-          const item = document.data() as Record<string, unknown>;
-          const workflowId =
-            typeof item.workflowId === "string"
-              ? item.workflowId
-              : document.id;
-
-          const execution: WorkflowExecutionItem = {
-            id: document.id,
-            workflowId,
-            userId:
-              typeof item.userId === "string"
-                ? item.userId
-                : undefined,
-            workflowName:
-              typeof item.workflowName === "string"
-                ? item.workflowName
-                : "Workflow",
-            status:
-              typeof item.status === "string"
-                ? (item.status as WorkflowExecutionStatus)
-                : "not_started",
-            startedAt: item.startedAt,
-            completedAt: item.completedAt,
-            currentAction:
-              typeof item.currentAction === "string"
-                ? item.currentAction
-                : null,
-            totalActions:
-              typeof item.totalActions === "number"
-                ? item.totalActions
-                : undefined,
-            completedActions:
-              typeof item.completedActions === "number"
-                ? item.completedActions
-                : 0,
-            errorMessage:
-              typeof item.errorMessage === "string"
-                ? item.errorMessage
-                : null,
-          };
-
-          nextExecutionMap[workflowId] = execution;
-        });
-
-        setExecutionMap(nextExecutionMap);
-      },
-      (err) => {
-        console.error("Failed to load workflow executions:", err);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [currentUser?.uid]);
+    setExecutionMap(nextExecutionMap);
+  }, [executionHistory]);
 
   const resetForm = () => {
     setForm(emptyForm);
