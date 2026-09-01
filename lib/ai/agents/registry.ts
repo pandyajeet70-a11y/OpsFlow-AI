@@ -327,6 +327,8 @@ function createAgent(
             requestId,
             userId: request.userId,
             organizationId: request.organizationId,
+            organizationRole: request.organizationRole,
+            isAdmin: request.isAdmin,
             signal: effectiveSignal,
           },
         });

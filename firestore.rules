@@ -1,41 +1,126 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    match /dashboard/{document} {
-      allow read: if request.auth != null;
+    function memberOrganizationId() {
+      return get(/databases/$(database)/documents/organizationMemberships/$(request.auth.uid)).data.organizationId;
+    }
+
+    function isOrgMember(orgId) {
+      return signedIn() && exists(/databases/$(database)/documents/organizationMemberships/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizationMemberships/$(request.auth.uid)).data.organizationId == orgId;
+    }
+
+    function ownsResource() {
+      return signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function immutableUserOrOrganization() {
+      return request.resource.data.userId == resource.data.userId
+        && request.resource.data.organizationId == resource.data.organizationId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /organizationMemberships/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
       allow write: if false;
     }
 
+    match /dashboard/{document} {
+      allow read: if signedIn() && resource.data.organizationId == memberOrganizationId();
+      allow write: if false;
+    }
+
+    match /organizations/{organizationId} {
+      allow read, write: if false;
+
+      match /members/{memberId} {
+        allow read, write: if false;
+      }
+
+      match /integrations/{integrationId} {
+        allow read, write: if false;
+      }
+
+      match /settings/{settingId} {
+        allow read, write: if false;
+      }
+    }
+
     match /workflows/{workflowId} {
-      allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow read, update, delete: if false;
     }
 
     match /workflowExecutions/{executionId} {
-      allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /executions/{executionId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /handoffs/{handoffId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /onboardingPlans/{onboardingPlanId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /onboardingTasks/{taskId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /approvals/{approvalId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /workflowEvents/{eventId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /auditEvents/{eventId} {
+      allow create: if false;
+      allow read, update, delete: if false;
     }
 
     match /activity/{activityId} {
-      allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow read, update, delete: if false;
     }
 
     match /notifications/{notificationId} {
-      allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /leads/{leadId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /campaigns/{campaignId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    match /integrationDeliveries/{deliveryId} {
+      allow create: if false;
+      allow read, update, delete: if false;
     }
   }
 }

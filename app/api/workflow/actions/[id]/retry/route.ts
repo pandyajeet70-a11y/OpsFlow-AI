@@ -12,6 +12,9 @@ export async function POST(
   try {
     const authorization = await requirePermission(request, "retry_actions");
     const { id: actionId } = await context.params;
+    if (!actionId || !actionId.trim()) {
+      return NextResponse.json({ error: "actionId is required." }, { status: 400 });
+    }
     const body = (await request.json()) as { executionId?: unknown };
     if (typeof body.executionId !== "string" || !body.executionId.trim()) {
       return NextResponse.json({ error: "executionId is required." }, { status: 400 });

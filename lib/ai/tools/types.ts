@@ -40,6 +40,9 @@ export interface ToolInputSchema {
    Tool definition
    --------------------------------------------------------------- */
 
+import type { Permission } from "../auth/authorization-server";
+import type { OrgRole } from "../auth/types";
+
 export interface ToolExecutionContext {
   agentId?: string;
   userId?: string;
@@ -49,6 +52,8 @@ export interface ToolExecutionContext {
    * carry this organizationId; approvals are scoped to it.
    */
   organizationId?: string;
+  /** Verified organization role resolved by the server. */
+  organizationRole?: OrgRole;
   /**
    * Whether the caller is a global admin (from Firebase custom claims).
    */
@@ -83,6 +88,9 @@ export interface ToolDefinition {
    * When true, the executor refuses to execute unless `context.approved` is set.
    */
   requiresApproval?: boolean;
+
+  /** Permission required before this tool may execute. */
+  requiredPermission?: Permission;
 
   /**
    * Optional whitelist of agent ids allowed to trigger this tool. When

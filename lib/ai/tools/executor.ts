@@ -28,6 +28,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from "./types";
+import { hasPermission } from "../auth/authorization-server";
 
 export interface ExecuteToolRequest {
   toolId: string;
@@ -42,6 +43,9 @@ export interface ExecuteToolRequest {
 export async function executeTool(
   request: ExecuteToolRequest
 ): Promise<ToolExecutionResult> {
+  if (!request.context?.userId || !request.context.organizationId || !request.context.organizationRole) {
+    throw new Error("Verified authorization context is required for tool execution.");
+  }
   if (
     typeof request.toolId !== "string" ||
     request.toolId.trim().length === 0
@@ -87,6 +91,33 @@ export async function executeTool(
 
   const approvalRequired = tool.requiresApproval === true;
   const approved = request.context?.approved === true;
+
+  if (tool.requiredPermission && !request.context.isAdmin && !hasPermission(request.context.organizationRole, tool.requiredPermission)) {
+    getDefaultAuditService().fire("authorization_denied", {
+      eventType: "authorization_denied",
+      requestId: request.context.requestId,
+      userId: request.context.userId,
+      organizationId: request.context.organizationId,
+      agentId: request.context.agentId,
+      toolId: tool.id,
+      success: false,
+      status: "forbidden",
+    });
+    return {
+      success: false,
+      toolId: tool.id,
+      toolName: tool.name,
+      executed: false,
+      status: "failed",
+      result: null,
+      durationMs: 0,
+      approvalRequired,
+      error: "You are not authorized to use this tool.",
+      requestId: request.context.requestId,
+      agentId: request.context.agentId,
+      userId: request.context.userId,
+    };
+  }
 
   if (approvalRequired && !approved) {
     let approvalId: string | undefined;

@@ -13,6 +13,7 @@ registerTool({
   description: "POSTs a JSON payload to an approved HTTPS webhook.",
   mutatesData: true,
   requiresApproval: true,
+  requiredPermission: "manage_organization",
   inputSchema: { type: "object", properties: { url: { type: "string" }, payload: { type: "object" } }, required: ["url", "payload"] },
   async execute(input, context) {
     const orgId = organizationId(context);
@@ -29,6 +30,7 @@ registerTool({
   description: "Sends an email through the configured email provider.",
   mutatesData: true,
   requiresApproval: true,
+  requiredPermission: "manage_organization",
   inputSchema: { type: "object", properties: { to: { type: "string" }, subject: { type: "string" }, text: { type: "string" }, from: { type: "string" } }, required: ["to", "subject", "text"] },
   async execute(input, context) {
     const orgId = organizationId(context);
@@ -44,6 +46,7 @@ registerTool({
   description: "Creates a contact through the configured CRM provider.",
   mutatesData: true,
   requiresApproval: true,
+  requiredPermission: "manage_organization",
   inputSchema: { type: "object", properties: { name: { type: "string" }, email: { type: "string" }, company: { type: "string" } }, required: ["name", "email"] },
   async execute(input, context) {
     const orgId = organizationId(context);

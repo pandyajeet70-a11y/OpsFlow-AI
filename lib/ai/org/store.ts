@@ -48,6 +48,14 @@ export class InMemoryOrgStore implements OrgStore {
     organization: Organization;
     membership: OrganizationMembership;
   }> {
+    const existingMembership = this.memberships.get(input.createdBy);
+    if (existingMembership) {
+      const existingOrganization = this.orgs.get(existingMembership.organizationId);
+      if (existingOrganization) {
+        return { organization: existingOrganization, membership: existingMembership };
+      }
+    }
+
     const organizationId = this.nextId();
     const now = this.now();
     const organization: Organization = {

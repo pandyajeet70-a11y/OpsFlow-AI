@@ -41,7 +41,8 @@ import {
   getOrCreateOrganizationForUser,
   initDefaultOrgStore,
 } from "@/lib/ai/org";
-import { defaultOrgServiceDeps } from "@/lib/ai/org/service";
+import { defaultOrgServiceDeps, getOrCreateOrganizationForUser as resolveOrganization } from "@/lib/ai/org/service";
+import { resolveAuthorizationContext } from "@/lib/ai/auth/authorization-server";
 import {
   getDefaultAuditService,
   initDefaultAuditStore,
@@ -191,6 +192,12 @@ function validateBody(body: RawRequestBody): AIGenerateRequest {
    ========================================================= */
 
 export async function POST(req: NextRequest) {
+  let authorization;
+  try {
+    authorization = await resolveAuthorizationContext(req);
+  } catch (error) {
+    return authErrorResponse(error);
+  }
   let rawBody: RawRequestBody;
 
   /* -------------------------------------------------------
@@ -250,11 +257,6 @@ export async function POST(req: NextRequest) {
      ------------------------------------------------------- */
 
   if (rawBody.preview === true) {
-    try {
-      await getAuthenticatedUser(req);
-    } catch (error) {
-      return authErrorResponse(error);
-    }
     const routing = previewRouting(validated.prompt);
 
     return NextResponse.json(
@@ -300,27 +302,11 @@ export async function POST(req: NextRequest) {
      Authenticate caller (Phase 3)
      ------------------------------------------------------- */
 
-  let user;
-  try {
-    user = await getAuthenticatedUser(req);
-  } catch (error) {
-    getDefaultAuditService().fire("authorization_denied", {
-      eventType: "authorization_denied",
-      requestId,
-      success: false,
-      status: "authentication_failed",
-      metadata: {
-        reason:
-          error instanceof Error ? error.message : "unauthenticated",
-      },
-    });
-    return authErrorResponse(error);
-  }
+  const user = authorization.user;
 
   // Resolve the caller's active organization. The org id is a server-controlled
   // value: it is NEVER taken from the request body or the model.
-  const orgService = defaultOrgServiceDeps();
-  const activeOrg = await getOrCreateOrganizationForUser(orgService, user);
+  const activeOrg = { organizationId: authorization.organizationId, role: authorization.role };
   const userId = user.uid;
   const organizationId = activeOrg.organizationId;
 
@@ -364,6 +350,8 @@ export async function POST(req: NextRequest) {
         requestId,
         userId,
         organizationId,
+        organizationRole: activeOrg.role,
+        isAdmin: user.admin,
       },
       controller.signal
     );
@@ -401,21 +389,21 @@ export async function POST(req: NextRequest) {
       };
     }
 
-  getDefaultAuditService().fire("ai_request_completed", {
-    eventType: "ai_request_completed",
-    requestId,
-    userId,
-    organizationId,
-    agentId: result.agentId,
-    success: true,
-    status: "completed",
-    metadata: {
-      provider: result.response.provider,
-      model: result.response.model,
-      responseLength: result.response.text.length,
-      toolStatus: result.response.tool?.status,
-    },
-  });
+    getDefaultAuditService().fire("ai_request_completed", {
+      eventType: "ai_request_completed",
+      requestId,
+      userId,
+      organizationId,
+      agentId: result.agentId,
+      success: true,
+      status: "completed",
+      metadata: {
+        provider: result.response.provider,
+        model: result.response.model,
+        responseLength: result.response.text.length,
+        toolStatus: result.response.tool?.status,
+      },
+    });
 
     return NextResponse.json(
       {
@@ -424,22 +412,22 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (err) {
-  getDefaultAuditService().fire("ai_request_failed", {
-    eventType: "ai_request_failed",
-    requestId,
-    userId,
-    organizationId,
-    success: false,
-    status: "failed",
-    metadata: {
-      errorType:
-        err instanceof AIError
-          ? err.code
-          : err instanceof Error
-            ? err.name
-            : "unknown",
-    },
-  });
+    getDefaultAuditService().fire("ai_request_failed", {
+      eventType: "ai_request_failed",
+      requestId,
+      userId,
+      organizationId,
+      success: false,
+      status: "failed",
+      metadata: {
+        errorType:
+          err instanceof AIError
+            ? err.code
+            : err instanceof Error
+              ? err.name
+              : "unknown",
+      },
+    });
 
     if (err instanceof AIError) {
       console.error(

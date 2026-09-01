@@ -4,13 +4,14 @@ import { createWorkflowAction, runWorkflowAction, approveWorkflowAction } from "
 import { getDefaultExecutionStore, initDefaultExecutionStore } from "@/lib/ai/executions/firestore-store";
 import { adminDb } from "@/lib/firebase-admin";
 import { getTool } from "@/lib/ai/tools/registry";
+import { isDevelopmentTestRouteAllowed } from "@/lib/ai/config/runtime";
 
 export const runtime = "nodejs";
 initDefaultAuditStore();
 initDefaultExecutionStore();
 
 export async function POST() {
-  if (process.env.NODE_ENV !== "development") return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!isDevelopmentTestRouteAllowed()) return NextResponse.json({ error: "Not found." }, { status: 404 });
   try {
     if (!getTool("send_email")?.requiresApproval) throw new Error("send_email is not approval-gated.");
     const requestId = `integration_test_${Date.now()}`;

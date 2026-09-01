@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { executeTool } from "@/lib/ai/tools/executor";
 import { getTool } from "@/lib/ai/tools/registry";
 import { adminDb } from "@/lib/firebase-admin";
+import { isDevelopmentTestRouteAllowed } from "@/lib/ai/config/runtime";
 
 export const runtime = "nodejs";
 
 export async function POST() {
-  if (process.env.NODE_ENV !== "development") {
+  if (!isDevelopmentTestRouteAllowed()) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 

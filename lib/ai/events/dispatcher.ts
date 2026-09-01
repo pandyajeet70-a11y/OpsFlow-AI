@@ -28,7 +28,7 @@ async function ensureEventHandlersLoaded(): Promise<void> {
 export async function emitWorkflowEvent<Name extends WorkflowEventName>(
   name: Name,
   payload: WorkflowEventPayloads[Name]
-): Promise<{ eventId: string; handlerCount: number; failedHandlers: number }> {
+): Promise<{ eventId: string; handlerCount: number; failedHandlers: number; persisted: boolean }> {
   const event: WorkflowEvent<Name> = {
     eventId: `wfe_${crypto.randomUUID()}`,
     name,
@@ -36,6 +36,7 @@ export async function emitWorkflowEvent<Name extends WorkflowEventName>(
     createdAt: new Date().toISOString(),
   };
 
+  let persisted = true;
   try {
     await adminDb.collection("workflowEvents").doc(event.eventId).set({
       ...event,
@@ -44,7 +45,14 @@ export async function emitWorkflowEvent<Name extends WorkflowEventName>(
         : {}),
     });
   } catch (error) {
+    persisted = false;
     console.error(`[workflow-events] failed to persist ${name}:`, error);
+  }
+
+  if (!persisted) {
+    console.warn(
+      `[workflow-events] ${name} was emitted without persistence; handlers continue but the event trail may be incomplete.`
+    );
   }
 
   await ensureEventHandlersLoaded();
@@ -63,6 +71,7 @@ export async function emitWorkflowEvent<Name extends WorkflowEventName>(
     eventId: event.eventId,
     handlerCount: registered.length,
     failedHandlers,
+    persisted,
   };
 }
 

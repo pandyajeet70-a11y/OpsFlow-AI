@@ -11,6 +11,9 @@ export async function GET(
   try {
     const auth = await requirePermission(request, "view_workflows");
     const { id } = await context.params;
+    if (!id || !id.trim()) {
+      return NextResponse.json({ error: "handoffId is required." }, { status: 400 });
+    }
     const handoff = await getHandoffById(id, auth.organizationId);
     return handoff
       ? NextResponse.json({ data: handoff })

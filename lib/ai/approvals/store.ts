@@ -127,7 +127,7 @@ export function isAuthorizedActor(
   opts: ActorContext | undefined
 ): boolean {
   if (!opts) return false;
-  if (doc.userId === opts.callerUserId) return true;
+  if (opts.callerUserId && doc.userId === opts.callerUserId) return false;
   if (opts.callerIsAdmin) return true;
   if (
     doc.organizationId &&

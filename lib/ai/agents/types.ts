@@ -57,6 +57,8 @@ export interface AgentRequest {
    * verified Firebase identity via the organization service.
    */
   organizationId?: string;
+  organizationRole?: import("@/lib/ai/auth/types").OrgRole;
+  isAdmin?: boolean;
 }
 
 export interface AgentToolResult {

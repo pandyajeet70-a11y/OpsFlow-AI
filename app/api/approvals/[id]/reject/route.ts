@@ -70,10 +70,11 @@ export async function POST(
       const execution = await getDefaultExecutionStore().getExecutionByRequestId(
         result.approval.requestId
       );
-      if (execution?.actions?.some((action) => action.approvalId === id)) {
+      const action = execution?.actions?.find((candidate) => candidate.approvalId === id);
+      if (execution && action) {
         await syncWorkflowActionApprovalResult({
           executionId: execution.executionId,
-          actionId: result.approval.toolId,
+          actionId: action.actionId,
           completed: false,
         });
       }

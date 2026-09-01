@@ -25,6 +25,7 @@ registerTool({
 
   mutatesData: true,
   requiresApproval: true,
+  requiredPermission: "manage_organization",
 
   inputSchema: {
     type: "object",
@@ -75,6 +76,7 @@ registerTool({
       requestedByAgent: context?.agentId ?? null,
       requestedByUser: context?.userId ?? null,
       requestId: context?.requestId ?? null,
+      organizationId: context?.organizationId ?? null,
       createdAt: FieldValue.serverTimestamp(),
     };
 

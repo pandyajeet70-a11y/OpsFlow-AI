@@ -17,6 +17,7 @@ registerTool({
     "Creates a structured Sales-to-Customer-Success handoff and saves it to Firestore.",
   mutatesData: true,
   requiresApproval: false,
+  requiredPermission: "create_handoffs",
   inputSchema: {
     type: "object",
     properties: {
@@ -100,6 +101,7 @@ registerTool({
   description: "Retrieves a customer handoff from Firestore for Customer Success processing.",
   mutatesData: false,
   requiresApproval: false,
+  requiredPermission: "view_workflows",
   inputSchema: {
     type: "object",
     properties: {
@@ -107,7 +109,11 @@ registerTool({
     },
     required: ["handoffId"],
   },
-  async execute(input) {
+  async execute(input, context) {
+    if (!context?.organizationId) {
+      throw new Error("Organization context is required.");
+    }
+
     const handoffId = typeof input.handoffId === "string" ? input.handoffId.trim() : "";
     if (!handoffId) {
       throw new Error("Handoff ID is required.");
@@ -120,6 +126,10 @@ registerTool({
       }
 
       const data = document.data() ?? {};
+      if (data.organizationId && data.organizationId !== context.organizationId) {
+        throw new Error("Customer handoff was not found.");
+      }
+
       const requiredFields = [
         "customerName",
         "customerEmail",
@@ -165,6 +175,7 @@ registerTool({
   description: "Persists a structured Customer Success onboarding plan for a handoff.",
   mutatesData: true,
   requiresApproval: false,
+  requiredPermission: "manage_onboarding",
   inputSchema: {
     type: "object",
     properties: {
@@ -173,7 +184,11 @@ registerTool({
     },
     required: ["handoffId", "onboardingPlan"],
   },
-  async execute(input) {
+  async execute(input, context) {
+    if (!context?.organizationId) {
+      throw new Error("Organization context is required.");
+    }
+
     const handoffId = typeof input.handoffId === "string" ? input.handoffId.trim() : "";
     const onboardingPlan = input.onboardingPlan as OnboardingPlan;
     if (!handoffId || !onboardingPlan || typeof onboardingPlan !== "object") {
@@ -186,15 +201,18 @@ registerTool({
         throw new Error("Customer handoff was not found.");
       }
 
+      const handoffData = handoff.data() ?? {};
+      if (handoffData.organizationId && handoffData.organizationId !== context.organizationId) {
+        throw new Error("Customer handoff was not found.");
+      }
+
       const docRef = await adminDb.collection("onboardingPlans").add({
         handoffId,
         onboardingPlan,
         status: "draft",
         createdBy: "customer_success_agent",
         createdAt: FieldValue.serverTimestamp(),
-        ...(handoff.data()?.organizationId
-          ? { organizationId: handoff.data()?.organizationId }
-          : {}),
+        organizationId: context.organizationId,
       });
 
       return { planId: docRef.id, handoffId, status: "draft" };
@@ -214,6 +232,7 @@ registerTool({
   description: "Creates an onboarding task from a persisted onboarding plan. Requires approval.",
   mutatesData: true,
   requiresApproval: true,
+  requiredPermission: "manage_onboarding",
   inputSchema: {
     type: "object",
     properties: {
@@ -226,6 +245,10 @@ registerTool({
     required: ["handoffId", "onboardingPlanId", "title", "description", "priority"],
   },
   async execute(input, context) {
+    if (!context?.organizationId) {
+      throw new Error("Organization context is required.");
+    }
+
     const stringFields = [
       "handoffId",
       "onboardingPlanId",
@@ -248,7 +271,12 @@ registerTool({
 
     try {
       const plan = await adminDb.collection("onboardingPlans").doc(values.onboardingPlanId).get();
-      if (!plan.exists || plan.data()?.handoffId !== values.handoffId) {
+      const planData = plan.data() ?? {};
+      if (!plan.exists || planData.handoffId !== values.handoffId) {
+        throw new Error("Onboarding plan was not found.");
+      }
+
+      if (planData.organizationId && planData.organizationId !== context.organizationId) {
         throw new Error("Onboarding plan was not found.");
       }
       const docRef = await adminDb.collection("onboardingTasks").add({
@@ -256,9 +284,7 @@ registerTool({
         status: "pending",
         createdBy: context?.agentId ?? "customer_success_agent",
         createdAt: FieldValue.serverTimestamp(),
-        ...(plan.data()?.organizationId
-          ? { organizationId: plan.data()?.organizationId }
-          : {}),
+        organizationId: context.organizationId,
       });
       return {
         taskId: docRef.id,

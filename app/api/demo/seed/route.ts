@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
 import { requirePermission, authorizationErrorResponse, isAuthorizationError } from "@/lib/ai/auth/authorization-server";
+import { isDevelopmentTestRouteAllowed } from "@/lib/ai/config/runtime";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV !== "development" && process.env.DEMO_MODE !== "true") return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!isDevelopmentTestRouteAllowed()) return NextResponse.json({ error: "Not found." }, { status: 404 });
   try {
     const context = await requirePermission(request, "manage_organization");
     const now = new Date().toISOString();

@@ -39,32 +39,47 @@ export class FirestoreOrgStore implements OrgStore {
     organization: Organization;
     membership: OrganizationMembership;
   }> {
-    const now = new Date().toISOString();
-    const ref = this.orgs().doc();
-    const organization: Organization = {
-      organizationId: ref.id,
-      name: input.name,
-      createdBy: input.createdBy,
-      ownerId: input.createdBy,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await ref.set(organization);
+    const membershipRef = this.memberships().doc(input.createdBy);
+    const result = await adminDb.runTransaction(async (tx) => {
+      const existingMembershipSnap = await tx.get(membershipRef);
+      if (existingMembershipSnap.exists) {
+        const existingMembership = existingMembershipSnap.data() as OrganizationMembership;
+        const existingOrganizationSnap = await tx.get(this.orgs().doc(existingMembership.organizationId));
+        const existingOrganization = existingOrganizationSnap.data() as Organization | undefined;
+        if (existingOrganization) {
+          return { organization: existingOrganization, membership: existingMembership };
+        }
+      }
 
-    const membership: OrganizationMembership = {
-      organizationId: ref.id,
-      userId: input.createdBy,
-      role: "owner" as OrgRole,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.memberships().doc(input.createdBy).set(membership);
-    await ref.collection("members").doc(input.createdBy).set({
-      ...membership,
-      joinedAt: now,
+      const now = new Date().toISOString();
+      const ref = this.orgs().doc();
+      const organization: Organization = {
+        organizationId: ref.id,
+        name: input.name,
+        createdBy: input.createdBy,
+        ownerId: input.createdBy,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const membership: OrganizationMembership = {
+        organizationId: ref.id,
+        userId: input.createdBy,
+        role: "owner" as OrgRole,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      tx.set(ref, organization);
+      tx.set(membershipRef, membership);
+      tx.set(ref.collection("members").doc(input.createdBy), {
+        ...membership,
+        joinedAt: now,
+      });
+
+      return { organization, membership };
     });
 
-    return { organization, membership };
+    return result;
   }
 
   async getMembership(userId: string): Promise<OrganizationMembership | null> {

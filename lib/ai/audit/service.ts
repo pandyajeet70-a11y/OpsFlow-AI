@@ -38,8 +38,9 @@ export class AuditService {
       await this.store.record(event);
       return event;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error(
-        `[audit] failed to persist ${event.eventType} (org=${event.organizationId ?? "?"}):`,
+        `[audit] failed to persist ${event.eventType} (org=${event.organizationId ?? "?"}, user=${event.userId ?? "?"}): ${message}`,
         err
       );
       return undefined;
@@ -47,8 +48,14 @@ export class AuditService {
   }
 
   /** Convenience to safely fire a single typed event without branching. */
-  async fire(eventType: AuditEventType, data: AuditRecordInput): Promise<void> {
-    await this.record({ ...data, eventType });
+  async fire(eventType: AuditEventType, data: AuditRecordInput): Promise<boolean> {
+    const result = await this.record({ ...data, eventType });
+    if (!result) {
+      console.warn(
+        `[audit] event ${eventType} was dropped without persistence; request may continue without a durable audit record.`
+      );
+    }
+    return result !== undefined;
   }
 }
 

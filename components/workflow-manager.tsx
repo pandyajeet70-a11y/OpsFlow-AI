@@ -142,62 +142,13 @@ const getActionLabel = (action: WorkflowAction) => {
 };
 
 const executeAction = async (
-  action: WorkflowAction,
-  workflowName: string,
-  userId: string,
-  executionId: string
+  _action: WorkflowAction,
+  _workflowName: string,
+  _userId: string,
+  _executionId: string
 ): Promise<void> => {
-  if (typeof action === "string") {
-    throw new Error(`Action "${action}" has no executable tool configured.`);
-  }
-
-  if (!isWebhookAction(action)) {
-    throw new Error("This workflow action is not executable.");
-  }
-
-  const response = await fetch(action.url, {
-    method: action.method ?? "GET",
-    headers:
-      action.method === "POST"
-        ? {
-            "Content-Type": "application/json",
-          }
-        : undefined,
-    body:
-      action.method === "POST" &&
-      action.body !== undefined &&
-      action.body !== null
-        ? typeof action.body === "string"
-          ? action.body
-          : JSON.stringify(action.body)
-        : undefined,
-  });
-
-  const actionLabel = getActionLabel(action);
-
-  await updateDoc(doc(db, "workflowExecutions", executionId), {
-    currentAction: actionLabel,
-    lastResult: {
-      type: "webhook",
-      status: response.status,
-      ok: response.ok,
-      url: action.url,
-      method: action.method ?? "GET",
-    },
-  });
-
-  if (!response.ok) {
-    const message = `Webhook action failed for ${action.url} with status ${response.status}.`;
-    await addActivity(
-      userId,
-      `Workflow "${workflowName}": webhook action "${actionLabel}" failed. ${message}`
-    );
-    throw new Error(message);
-  }
-
-  await addActivity(
-    userId,
-    `Workflow "${workflowName}": webhook action "${actionLabel}" completed.`
+  throw new Error(
+    "Workflow execution is disabled in the browser. Workflow actions must be executed by the server."
   );
 };
 
@@ -529,163 +480,12 @@ export default function WorkflowManager({
       return;
     }
 
-    const actions = workflow.actions ?? [];
-
-    if (actions.length === 0) {
-      setError("This workflow has no actions to execute.");
-      return;
-    }
-
-    if (runningWorkflowIdsRef.current.has(workflow.id)) {
-      return;
-    }
-
-    runningWorkflowIdsRef.current.add(workflow.id);
     setBusyId(workflow.id);
-    setError("");
+    setError(
+      "Workflow execution is disabled in the browser. Workflow execution must be initiated by the server."
+    );
     setSuccess("");
-
-    let executionRef: { id: string } | null = null;
-    let currentActionName: string | null = null;
-
-    try {
-      executionRef = await addDoc(
-        collection(db, "workflowExecutions"),
-        {
-          workflowId: workflow.id,
-          userId: currentUser.uid,
-          workflowName: workflow.name || "Unnamed workflow",
-          status: "running",
-          startedAt: serverTimestamp(),
-          completedAt: null,
-          currentAction: null,
-          totalActions: actions.length,
-          completedActions: 0,
-          errorMessage: null,
-        }
-      );
-
-      await addActivity(
-        currentUser.uid,
-        `Workflow "${workflow.name}" execution started.`
-      );
-
-      for (let index = 0; index < actions.length; index += 1) {
-        const action = actions[index];
-
-        if (typeof action === "string") {
-          const trimmed = action.trim();
-
-          if (!trimmed) {
-            continue;
-          }
-
-          throw new Error(`Action "${trimmed}" has no executable tool configured.`);
-        }
-
-        const webhookAction = isWebhookAction(action)
-          ? action
-          : null;
-
-        if (!webhookAction) {
-          currentActionName = "unknown action";
-          continue;
-        }
-
-        currentActionName = getActionLabel(webhookAction);
-
-        await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-          currentAction: currentActionName,
-          completedActions: index,
-          status: "running",
-          errorMessage: null,
-        });
-
-        try {
-          await executeAction(
-            webhookAction,
-            workflow.name || "Unnamed workflow",
-            currentUser.uid,
-            executionRef.id
-          );
-
-          await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-            currentAction: currentActionName,
-            completedActions: index + 1,
-            status: "running",
-            errorMessage: null,
-          });
-        } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Webhook request failed.";
-
-          await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-            status: "failed",
-            currentAction: currentActionName,
-            completedAt: serverTimestamp(),
-            errorMessage: message,
-          });
-
-          await addActivity(
-            currentUser.uid,
-            `Workflow "${workflow.name}": action "${currentActionName}" failed. Error: ${message}`
-          );
-
-          throw err;
-        }
-      }
-
-      await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-        status: "completed",
-        currentAction: null,
-        completedActions: actions.length,
-        completedAt: serverTimestamp(),
-        errorMessage: null,
-      });
-
-      await addActivity(
-        currentUser.uid,
-        `Workflow "${workflow.name}" execution completed.`
-      );
-
-      setSuccess("Workflow execution completed.");
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Unknown workflow execution error.";
-
-      console.error("Failed to run workflow:", err);
-
-      if (executionRef) {
-        const executionDoc = await getDoc(
-          doc(db, "workflowExecutions", executionRef.id)
-        );
-        const alreadyFailed =
-          executionDoc.data()?.status === "failed";
-
-        if (!alreadyFailed) {
-          await updateDoc(doc(db, "workflowExecutions", executionRef.id), {
-            status: "failed",
-            currentAction: currentActionName,
-            completedAt: serverTimestamp(),
-            errorMessage: message,
-          });
-
-          await addActivity(
-            currentUser.uid,
-            `Workflow "${workflow.name}": action "${currentActionName ?? "unknown action"}" failed. Error: ${message}`
-          );
-        }
-      }
-
-      setError(message);
-    } finally {
-      runningWorkflowIdsRef.current.delete(workflow.id);
-      setBusyId(null);
-    }
+    setTimeout(() => setBusyId(null), 1500);
   };
 
   return (

@@ -20,6 +20,7 @@ registerTool({
 
   mutatesData: true,
   requiresApproval: false,
+  requiredPermission: "create_leads",
 
   inputSchema: {
     type: "object",
@@ -35,7 +36,7 @@ registerTool({
     required: ["name", "email", "company"],
   },
 
-  async execute(input) {
+  async execute(input, context) {
     const name =
       typeof input.name === "string"
         ? input.name.trim()
@@ -78,6 +79,8 @@ registerTool({
       company,
       source,
       status: "new",
+      userId: context?.userId,
+      organizationId: context?.organizationId,
       createdAt: FieldValue.serverTimestamp(),
     };
 

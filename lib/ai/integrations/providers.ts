@@ -76,9 +76,24 @@ class ConfiguredCrmProvider implements CrmProvider {
 
 export async function resolveIntegrationProvider(organizationId: string, provider: IntegrationProvider) {
   const config = await getIntegrationConfig(organizationId, provider);
-  const enabled = config?.enabled === true;
-  const configured = resolveIntegrationMode(enabled, isProviderConfigured(provider)) === "configured";
-  return { config, configured, email: configured && provider === "email" ? new ConfiguredEmailProvider() : emailProvider, crm: configured && provider === "crm" ? new ConfiguredCrmProvider() : crmProvider };
+  const orgEnabled = config?.enabled === true;
+  const configured = resolveIntegrationMode(orgEnabled, isProviderConfigured(provider)) === "configured";
+
+  if (!orgEnabled) {
+    return {
+      config: null,
+      configured: false,
+      email: emailProvider,
+      crm: crmProvider,
+    };
+  }
+
+  return {
+    config,
+    configured,
+    email: configured && provider === "email" ? new ConfiguredEmailProvider() : emailProvider,
+    crm: configured && provider === "crm" ? new ConfiguredCrmProvider() : crmProvider,
+  };
 }
 
 export class MockEmailProvider implements EmailProvider {

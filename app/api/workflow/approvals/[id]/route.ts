@@ -12,6 +12,9 @@ export async function GET(
   try {
     const auth = await requirePermission(request, "view_workflows");
     const { id } = await context.params;
+    if (!id || !id.trim()) {
+      return NextResponse.json({ error: "approvalId is required." }, { status: 400 });
+    }
     const approval = await getApprovalById(id, auth.organizationId);
     return approval
       ? NextResponse.json({ data: approval })
