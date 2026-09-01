@@ -14,6 +14,7 @@ export interface DashboardSummary {
     pendingTasks: number;
     failedActions: number;
     pendingApprovals: number;
+    activeWorkflows: number;
   };
   recentActivity: Array<Record<string, unknown>>;
   activeExecutions: Array<Record<string, unknown>>;
@@ -23,9 +24,9 @@ export interface DashboardSummary {
 async function count(collection: string, organizationId?: string, field?: string, value?: string): Promise<number> {
   let query = adminDb.collection(collection) as FirebaseFirestore.Query;
   if (organizationId) query = query.where("organizationId", "==", organizationId);
-  if (field && value) query = query.where(field, "==", value);
-  const snapshot = await query.count().get();
-  return snapshot.data().count;
+  const snapshot = await query.get();
+  if (!field || value === undefined) return snapshot.size;
+  return snapshot.docs.filter((document) => document.data()[field] === value).length;
 }
 
 export async function getDashboardSummary(organizationId?: string): Promise<DashboardSummary> {
@@ -35,6 +36,7 @@ export async function getDashboardSummary(organizationId?: string): Promise<Dash
     onboardingPlans,
     pendingTasks,
     pendingApprovals,
+    activeWorkflows,
     executions,
     approvals,
     events,
@@ -45,6 +47,7 @@ export async function getDashboardSummary(organizationId?: string): Promise<Dash
     count("onboardingPlans", organizationId),
     count("onboardingTasks", organizationId, "status", "pending"),
     count("approvals", organizationId, "status", "pending"),
+    count("workflows", organizationId, "status", "active"),
     listExecutions({ limit: 50, organizationId }),
     listApprovals({ limit: 50, organizationId }),
     listWorkflowEvents({ limit: 15, organizationId }),
@@ -77,6 +80,7 @@ export async function getDashboardSummary(organizationId?: string): Promise<Dash
       pendingTasks,
       failedActions,
       pendingApprovals,
+      activeWorkflows,
     },
     recentActivity,
     activeExecutions,

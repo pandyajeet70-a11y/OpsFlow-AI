@@ -77,17 +77,15 @@ export async function listUserCollection(
   orderField = "createdAt"
 ): Promise<WorkflowDocument[]> {
   const limit = Math.min(100, Math.max(1, options.limit ?? 25));
-  let query: FirebaseFirestore.Query = adminDb.collection(collection)
-    .where("userId", "==", userId);
-  if (options.organizationId) query = query.where("organizationId", "==", options.organizationId);
-  const snapshot = await query
-    .orderBy(orderField, "desc")
+  const snapshot = await adminDb.collection(collection)
+    .where("userId", "==", userId)
     .limit(limit)
     .get();
-  return snapshot.docs.map((document) => ({
+  const records: WorkflowDocument[] = snapshot.docs.map((document): WorkflowDocument => ({
     id: document.id,
     ...(normalize(document.data()) as Record<string, unknown>),
-  }));
+  })).filter((record) => !options.organizationId || record["organizationId"] === options.organizationId);
+  return records.sort((left, right) => String(right[orderField] ?? "").localeCompare(String(left[orderField] ?? "")));
 }
 
 export async function getExecutionDetails(id: string, organizationId?: string): Promise<Execution | null> {
