@@ -26,7 +26,13 @@ export async function POST(
         { status: 409 }
       );
     }
-    const action = await retryWorkflowAction({ executionId: body.executionId, actionId, organizationId: authorization.organizationId });
+    const action = await retryWorkflowAction({
+      executionId: body.executionId,
+      actionId,
+      organizationId: authorization.organizationId,
+      organizationRole: authorization.role,
+      isAdmin: authorization.user.admin === true,
+    });
     return NextResponse.json({ data: action });
   } catch (error) {
     if (isAuthorizationError(error)) return authorizationErrorResponse(error);

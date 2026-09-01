@@ -51,6 +51,10 @@ export function registerTool(tool: ToolDefinition): void {
     throw new Error("Tool id is required.");
   }
 
+  if (!tool.inputSchema || tool.inputSchema.type !== "object") {
+    throw new Error(`Tool "${tool.id}" must define an input schema.`);
+  }
+
   if (tools.has(tool.id)) {
     throw new Error(
       `Tool "${tool.id}" is already registered.`

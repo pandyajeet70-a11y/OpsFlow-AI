@@ -241,6 +241,8 @@ export async function retryWorkflowAction(input: {
   executionId: string;
   actionId: string;
   organizationId?: string;
+  organizationRole?: import("@/lib/ai/auth/types").OrgRole;
+  isAdmin?: boolean;
 }): Promise<WorkflowAction> {
   const store = getDefaultExecutionStore();
   const execution = await store.getExecution(input.executionId);
@@ -271,6 +273,8 @@ export async function retryWorkflowAction(input: {
       requestId: execution.requestId,
       userId: approval.userId,
       organizationId: approval.organizationId,
+      organizationRole: input.organizationRole,
+      isAdmin: input.isAdmin,
     },
     maxAttempts: action.maxAttempts,
   });

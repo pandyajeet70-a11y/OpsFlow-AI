@@ -64,6 +64,8 @@ export async function POST(
               organizationId: activeOrg.organizationId,
               agentId: approvedRequest.context?.agentId,
               requestId: approvedRequest.context?.requestId,
+              organizationRole: activeOrg.role,
+              isAdmin: user.admin === true,
             },
           }),
       },

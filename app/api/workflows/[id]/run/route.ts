@@ -6,8 +6,8 @@ import {
   requirePermission,
 } from "@/lib/ai/auth/authorization-server";
 import { getDefaultExecutionStore } from "@/lib/ai/executions/firestore-store";
-import { executeTool } from "@/lib/ai/tools/executor";
-import { resolveToolId } from "@/lib/ai/tools/registry";
+import { runWorkflowAction } from "@/lib/ai/executions/actions";
+import { validateWorkflowActions } from "@/lib/ai/workflows/validation";
 
 export const runtime = "nodejs";
 
@@ -21,42 +21,6 @@ async function getOwnedWorkflow(request: NextRequest, workflowId: string) {
   return { context, workflow: snapshot.data() as Record<string, unknown> };
 }
 
-function normalizeWorkflowAction(action: unknown): { toolId: string; input: Record<string, unknown> } | null {
-  if (typeof action === "string" && action.trim()) {
-    const toolId = resolveToolId(action);
-    if (!toolId) return null;
-    return { toolId, input: {} };
-  }
-  if (action && typeof action === "object") {
-    const candidate = action as Record<string, unknown>;
-    const rawToolId =
-      typeof candidate.toolId === "string"
-        ? candidate.toolId
-        : typeof candidate.id === "string"
-          ? candidate.id
-          : typeof candidate.name === "string"
-            ? candidate.name
-            : null;
-    const toolId = rawToolId ? resolveToolId(rawToolId) : null;
-    if (!toolId) return null;
-    const type = typeof candidate.type === "string" ? candidate.type : "";
-    if (type === "webhook") {
-      const url = typeof candidate.url === "string" ? candidate.url : "";
-      if (!url) return null;
-      return {
-        toolId: resolveToolId("send_webhook") ?? "send_webhook",
-        input: {
-          url,
-          method: candidate.method === "GET" || candidate.method === "POST" ? candidate.method : "POST",
-          payload: candidate.body ?? {},
-        },
-      };
-    }
-    return { toolId, input: (candidate.input as Record<string, unknown>) ?? {} };
-  }
-  return null;
-}
-
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const workflowId = (await params).id;
@@ -65,14 +29,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Workflow not found." }, { status: 404 });
     }
     const { context, workflow } = owned;
-    const actions = Array.isArray(workflow.actions) ? workflow.actions : [];
-    const normalized = actions
-      .map((action) => normalizeWorkflowAction(action))
-      .filter((action): action is { toolId: string; input: Record<string, unknown> } => Boolean(action));
-
-    if (!normalized.length) {
-      return NextResponse.json({ error: "Workflow has no executable actions." }, { status: 400 });
-    }
+    const actionValidation = validateWorkflowActions(workflow.actions);
+    if (actionValidation.error) return NextResponse.json({ error: actionValidation.error }, { status: 400 });
+    const normalized = actionValidation.actions;
 
     const executionStore = getDefaultExecutionStore();
     const execution = await executionStore.createExecution({
@@ -107,9 +66,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let completedActions = 0;
     let lastAction: string | null = null;
 
-    for (const action of normalized) {
+    for (const [index, action] of normalized.entries()) {
       lastAction = action.toolId;
-      const result = await executeTool({
+      const workflowAction = await runWorkflowAction({
+        executionId: execution.executionId,
+        actionId: `action_${index + 1}_${action.toolId}`,
         toolId: action.toolId,
         input: action.input,
         context: {
@@ -122,15 +83,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
       });
 
-      if (!result.success) {
+      if (workflowAction.status === "awaiting_approval") {
+        await adminDb.collection("workflowExecutions").doc(execution.executionId).set(
+          {
+            status: "waiting_for_approval",
+            currentAction: action.toolId,
+            completedActions,
+            approvalId: workflowAction.approvalId ?? null,
+          },
+          { merge: true }
+        );
+        return NextResponse.json(
+          {
+            data: {
+              workflowId,
+              executionId: execution.executionId,
+              status: "waiting_for_approval",
+              approvalId: workflowAction.approvalId,
+            },
+          },
+          { status: 202 }
+        );
+      }
+
+      if (workflowAction.status === "failed") {
         await executionStore.updateExecution(execution.executionId, {
           status: "failed",
-          error: result.error ?? `Workflow action failed: ${action.toolId}`,
+          error: workflowAction.lastError ?? `Workflow action failed: ${action.toolId}`,
         });
         await adminDb.collection("workflowExecutions").doc(execution.executionId).set(
           {
             status: "failed",
-            errorMessage: result.error ?? `Workflow action failed: ${action.toolId}`,
+            errorMessage: workflowAction.lastError ?? `Workflow action failed: ${action.toolId}`,
             completedAt: new Date().toISOString(),
             completedActions,
             currentAction: lastAction,
@@ -138,7 +122,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           { merge: true }
         );
         return NextResponse.json(
-          { error: result.error ?? `Workflow action failed: ${action.toolId}` },
+          { error: workflowAction.lastError ?? `Workflow action failed: ${action.toolId}` },
           { status: 500 }
         );
       }

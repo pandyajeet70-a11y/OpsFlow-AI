@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { authorizationErrorResponse, isAuthorizationError, requirePermission } from "@/lib/ai/auth/authorization-server";
+import { validateWorkflowActions } from "@/lib/ai/workflows/validation";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.trigger === "string") updates.trigger = body.trigger.trim() || "Manual trigger";
     if (body.triggerType === "manual" || body.triggerType === "new_customer") updates.triggerType = body.triggerType;
     if (body.status === "active" || body.status === "paused") updates.status = body.status;
-    if (Array.isArray(body.actions) && body.actions.every((action) => typeof action === "string")) updates.actions = body.actions.map((action) => action.trim()).filter(Boolean);
+    if (body.actions !== undefined) {
+      const actionValidation = validateWorkflowActions(body.actions);
+      if (actionValidation.error) return NextResponse.json({ error: actionValidation.error }, { status: 400 });
+      updates.actions = actionValidation.actions;
+    }
     await result.reference.update(updates);
     return NextResponse.json({ data: { id: result.reference.id, ...result.data, ...updates } });
   } catch (error) {

@@ -76,7 +76,7 @@ export interface ToolDefinition {
    * Used for (a) telling the model what to emit, and (b) runtime validation
    * before execution so untyped/garbage args never reach business logic.
    */
-  inputSchema?: ToolInputSchema;
+  inputSchema: ToolInputSchema;
 
   /**
    * Whether this tool can make a real business-side change.

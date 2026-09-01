@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { authorizationErrorResponse, isAuthorizationError, requirePermission } from "@/lib/ai/auth/authorization-server";
-import { resolveToolId } from "@/lib/ai/tools/registry";
+import "@/lib/ai/tools/builtins";
+import { validateWorkflowActions } from "@/lib/ai/workflows/validation";
 
 export const runtime = "nodejs";
 
@@ -13,31 +14,11 @@ export async function POST(request: NextRequest) {
     const description = typeof body.description === "string" ? body.description.trim() : "";
     const trigger = typeof body.trigger === "string" ? body.trigger.trim() : "Manual trigger";
     const triggerType = body.triggerType === "new_customer" ? "new_customer" : "manual";
-    const actions = Array.isArray(body.actions)
-      ? body.actions
-          .map((action) => {
-            if (typeof action === "string") {
-              return resolveToolId(action);
-            }
-
-            if (action && typeof action === "object") {
-              const candidate = action as { toolId?: unknown; id?: unknown; name?: unknown };
-              return resolveToolId(
-                typeof candidate.toolId === "string"
-                  ? candidate.toolId
-                  : typeof candidate.id === "string"
-                    ? candidate.id
-                    : typeof candidate.name === "string"
-                      ? candidate.name
-                      : null
-              );
-            }
-
-            return null;
-          })
-          .filter((action): action is string => Boolean(action))
-      : null;
-    if (!name || !description || !actions) return NextResponse.json({ error: "name, description, and string actions are required." }, { status: 400 });
+    const actionValidation = validateWorkflowActions(body.actions);
+    if (!name || !description || actionValidation.error) {
+      return NextResponse.json({ error: actionValidation.error ?? "name and description are required." }, { status: 400 });
+    }
+    const actions = actionValidation.actions;
     const reference = await adminDb.collection("workflows").add({ userId: context.userId, organizationId: context.organizationId, name, description, trigger, triggerType, actions, status: "active", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     return NextResponse.json({ data: { id: reference.id, userId: context.userId, organizationId: context.organizationId, name, description, trigger, triggerType, actions, status: "active" } }, { status: 201 });
   } catch (error) {

@@ -29,6 +29,7 @@ import {
   decideToolCallWithModel,
   normalizeModelDecision,
 } from "../lib/ai/tools/decision";
+import { validateWorkflowActions } from "../lib/ai/workflows/validation";
 import type { AIProvider } from "../lib/ai/types";
 
 let failures = 0;
@@ -79,6 +80,28 @@ registerTool({
 });
 
 registerTool({
+  id: "create_customer_handoff",
+  name: "Create Customer Handoff",
+  description: "Creates a customer handoff.",
+  mutatesData: true,
+  requiresApproval: false,
+  inputSchema: {
+    type: "object",
+    properties: {
+      customerName: { type: "string" },
+      customerEmail: { type: "string" },
+      company: { type: "string" },
+      dealSummary: { type: "string" },
+      salesNotes: { type: "string" },
+      plan: { type: "string" },
+      owner: { type: "string" },
+    },
+    required: ["customerName", "customerEmail", "company", "dealSummary", "salesNotes", "plan", "owner"],
+  },
+  execute: async (input) => ({ id: "H1", ...input }),
+});
+
+registerTool({
   id: "admin_tool",
   name: "Admin Tool",
   description: "Operations-only.",
@@ -119,6 +142,46 @@ check(
     email: "j@x.com",
     company: "Acme",
   }).valid
+);
+
+console.log("\n== Workflow action normalization and validation ==");
+const namedLead = validateWorkflowActions([
+  {
+    name: "Create customer profile",
+    input: { name: "Jane", email: "jane@example.com", company: "Acme" },
+  },
+]);
+check(
+  "display name resolves to canonical create_lead ID",
+  namedLead.actions[0]?.toolId === "create_lead",
+  JSON.stringify(namedLead)
+);
+const incompleteLead = validateWorkflowActions(["Create customer profile"]);
+check(
+  "workflow with missing lead inputs is rejected clearly",
+  Boolean(incompleteLead.error && incompleteLead.error.includes("name")) &&
+    Boolean(incompleteLead.error && incompleteLead.error.includes("email")) &&
+    Boolean(incompleteLead.error && incompleteLead.error.includes("company")),
+  incompleteLead.error
+);
+const namedHandoff = validateWorkflowActions([
+  {
+    name: "Prepare sales handoff",
+    input: {
+      customerName: "Jane",
+      customerEmail: "jane@example.com",
+      company: "Acme",
+      dealSummary: "Expansion",
+      salesNotes: "Priority account",
+      plan: "Pro",
+      owner: "Alex",
+    },
+  },
+]);
+check(
+  "display name resolves to canonical create_customer_handoff ID",
+  namedHandoff.actions[0]?.toolId === "create_customer_handoff",
+  JSON.stringify(namedHandoff)
 );
 
 console.log("\n== JSON extraction from free-form model text ==");

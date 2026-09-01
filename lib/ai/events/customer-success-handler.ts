@@ -72,6 +72,7 @@ async function handleCustomerHandoffCreated(
         requestId,
         userId: "customer_success_agent",
         organizationId: event.payload.organizationId,
+        organizationRole: "customer_success",
       },
     });
     if (!handoffResult.success) {

@@ -207,6 +207,8 @@ export interface ToolExecutionContext {
   requestId: string;
   userId?: string;
   organizationId?: string;
+  organizationRole?: import("@/lib/ai/auth/types").OrgRole;
+  isAdmin?: boolean;
   signal?: AbortSignal;
   approved?: boolean;
 }
