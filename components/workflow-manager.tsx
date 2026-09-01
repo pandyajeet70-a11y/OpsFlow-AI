@@ -481,11 +481,32 @@ export default function WorkflowManager({
     }
 
     setBusyId(workflow.id);
-    setError(
-      "Workflow execution is disabled in the browser. Workflow execution must be initiated by the server."
-    );
+    setError("");
     setSuccess("");
-    setTimeout(() => setBusyId(null), 1500);
+
+    try {
+      const response = await authFetch(`/api/workflows/${workflow.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw await responseError(response, "Unable to run workflow.");
+
+      const payload = (await response.json()) as {
+        data?: { executionId?: string; workflowId?: string };
+      };
+      setSuccess(
+        payload.data?.executionId
+          ? `Workflow started. Execution ${payload.data.executionId}.`
+          : "Workflow started."
+      );
+    } catch (err) {
+      console.error("Failed to run workflow:", err);
+      setError(
+        err instanceof Error ? err.message : "Unable to run workflow."
+      );
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
