@@ -195,6 +195,17 @@ export async function approveApproval(
       execution.result,
       new Date().toISOString()
     );
+    await deps.audit?.fire("tool_executed", {
+      eventType: "tool_executed",
+      requestId: approval.requestId,
+      userId: input.callerUserId,
+      organizationId: approval.organizationId,
+      agentId: approval.agentId,
+      toolId: approval.toolId,
+      approvalId: approval.approvalId,
+      success: true,
+      status: "completed",
+    });
     const finalApproval = await deps.store.get(approval.approvalId);
     return {
       ok: true,
@@ -209,6 +220,17 @@ export async function approveApproval(
     execution.error ?? "Tool execution failed.",
     new Date().toISOString()
   );
+  await deps.audit?.fire("tool_failed", {
+    eventType: "tool_failed",
+    requestId: approval.requestId,
+    userId: input.callerUserId,
+    organizationId: approval.organizationId,
+    agentId: approval.agentId,
+    toolId: approval.toolId,
+    approvalId: approval.approvalId,
+    success: false,
+    status: "failed",
+  });
   const finalApproval = await deps.store.get(approval.approvalId);
   return {
     ok: false,

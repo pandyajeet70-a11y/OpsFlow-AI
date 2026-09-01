@@ -4,6 +4,8 @@ import { approveApproval, createApproval, type ApprovalServiceDeps } from "../li
 import { registerTool, getTool } from "../lib/ai/tools/registry";
 import type { ToolExecutionResult } from "../lib/ai/tools/types";
 import { resolveIntegrationMode } from "../lib/ai/integrations/resolution";
+import { AuditService } from "../lib/ai/audit/service";
+import { InMemoryAuditStore } from "../lib/ai/audit/store";
 
 let failures = 0;
 function check(name: string, condition: boolean): void { if (condition) console.log(`PASS ${name}`); else { failures++; console.log(`FAIL ${name}`); } }
@@ -20,7 +22,9 @@ function execute(): ApprovalServiceDeps["execute"] {
   };
 }
 
-function deps(store: ApprovalStore): ApprovalServiceDeps { return { store, resolveTool: getTool, execute: execute() }; }
+const auditStore = new InMemoryAuditStore();
+const audit = new AuditService(auditStore);
+function deps(store: ApprovalStore): ApprovalServiceDeps { return { store, resolveTool: getTool, execute: execute(), audit }; }
 
 async function main(): Promise<void> {
   check("owner can manage integrations", canManageIntegration("owner"));
@@ -31,7 +35,7 @@ async function main(): Promise<void> {
   const approval = await createApproval(deps(store), { requestId: "integration_req", userId: "owner_1", organizationId: "org_1", toolId: "integration_fixture", toolName: "Integration Fixture", arguments: { mode: "mock" } });
   check("integration execution is approval-gated", approval.status === "pending" && persistedDeliveries.length === 0);
   const result = await approveApproval(deps(store), { approvalId: approval.approvalId, callerUserId: "owner_1", callerOrganizationId: "org_1", callerOrgRole: "owner" });
-  check("approved integration persists delivery and audit", result.ok && result.approval?.status === "executed" && persistedDeliveries.length === 1 && result.approval.audit.some((entry) => entry.event === "tool_executed"));
+  check("approved integration persists delivery and audit", result.ok && result.approval?.status === "executed" && persistedDeliveries.length === 1 && (await auditStore.queryAll()).some((entry) => entry.eventType === "tool_executed"));
   if (failures) process.exitCode = 1;
 }
 
