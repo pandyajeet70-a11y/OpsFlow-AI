@@ -30,18 +30,7 @@ async function count(collection: string, organizationId?: string, field?: string
 }
 
 export async function getDashboardSummary(organizationId?: string): Promise<DashboardSummary> {
-  const [
-    totalHandoffs,
-    pendingHandoffs,
-    onboardingPlans,
-    pendingTasks,
-    pendingApprovals,
-    activeWorkflows,
-    executions,
-    approvals,
-    events,
-    audit,
-  ] = await Promise.all([
+  const results = await Promise.allSettled([
     count("handoffs", organizationId),
     count("handoffs", organizationId, "status", "pending"),
     count("onboardingPlans", organizationId),
@@ -54,15 +43,36 @@ export async function getDashboardSummary(organizationId?: string): Promise<Dash
     listAuditRecords({ limit: 15, organizationId }),
   ]);
 
+  const toNumber = (index: number, fallback = 0): number => (results[index]?.status === "fulfilled" ? Number(results[index].value ?? fallback) : fallback);
+  const toArray = <T>(index: number, fallback: T[] = []): T[] => (results[index]?.status === "fulfilled" ? (results[index].value as T[] | undefined ?? fallback) : fallback);
+
+  const totalHandoffs = toNumber(0);
+  const pendingHandoffs = toNumber(1);
+  const onboardingPlans = toNumber(2);
+  const pendingTasks = toNumber(3);
+  const pendingApprovals = toNumber(4);
+  const activeWorkflows = toNumber(5);
+  const executions = toArray<any>(6, []);
+  const approvals = toArray<any>(7, []);
+  const events = toArray<any>(8, []);
+  const audit = toArray<any>(9, []);
+
   const activeExecutions = executions
-    .filter((execution) => ["pending", "running", "waiting_for_approval", "retrying"].includes(execution.status))
+    .filter((execution: Record<string, unknown>) => ["pending", "running", "waiting_for_approval", "retrying"].includes(String(execution.status ?? "")))
     .map((execution) => execution as unknown as Record<string, unknown>);
   const pendingApprovalRecords = approvals
-    .filter((approval) => approval.status === "pending")
+    .filter((approval: Record<string, unknown>) => approval.status === "pending")
     .map((approval) => approval as unknown as Record<string, unknown>);
   const failedActions = executions.reduce(
-    (total, execution) =>
-      total + (execution.actions?.filter((action) => action.status === "failed").length ?? 0),
+    (total: number, execution: Record<string, unknown>) => {
+      const actions = Array.isArray(execution.actions) ? execution.actions : [];
+      const failedCount = actions.filter((action: unknown) => {
+        if (typeof action !== "object" || action === null) return false;
+        const candidate = action as { status?: unknown };
+        return candidate.status === "failed";
+      }).length;
+      return total + failedCount;
+    },
     0
   );
   const recentActivity = [

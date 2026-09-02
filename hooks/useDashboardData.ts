@@ -39,7 +39,7 @@ export function useDashboardData() {
         return;
       }
       setLoading(true); setError(null);
-      void Promise.all([
+      void Promise.allSettled([
         authFetch("/api/dashboard/data", { cache: "no-store" }).then(async (response) => {
           if (!response.ok) throw new Error(await response.text());
           return (await response.json() as { data: DashboardData }).data;
@@ -48,10 +48,25 @@ export function useDashboardData() {
           if (!response.ok) throw new Error(await response.text());
           return (await response.json() as { data: { metrics?: { activeWorkflows?: number } } }).data;
         }),
-      ]).then(([data, summary]) => {
+      ]).then(([dataResult, summaryResult]) => {
         if (!active) return;
-        setProfile(data.profile ?? null); setWorkflows(data.workflows ?? []); setActivity(data.activity ?? []); setNotifications(data.notifications ?? []); setExecutionHistory(data.executionHistory ?? []); setExecutionHistoryError(null);
-        setStats({ revenue: 0, totalUsers: 0, activeWorkflows: summary.metrics?.activeWorkflows ?? 0 });
+        const data = dataResult.status === "fulfilled" ? dataResult.value : null;
+        const summary = summaryResult.status === "fulfilled" ? summaryResult.value : null;
+
+        if (data) {
+          setProfile(data.profile ?? null); setWorkflows(data.workflows ?? []); setActivity(data.activity ?? []); setNotifications(data.notifications ?? []); setExecutionHistory(data.executionHistory ?? []); setExecutionHistoryError(null);
+        }
+        if (summary) {
+          setStats({ revenue: 0, totalUsers: 0, activeWorkflows: summary.metrics?.activeWorkflows ?? 0 });
+        }
+
+        if (!data && !summary) {
+          const message = formatApiError(
+            dataResult.status === "rejected" ? dataResult.reason : summaryResult.status === "rejected" ? summaryResult.reason : new Error("Unable to load dashboard data."),
+            "Unable to load dashboard data."
+          );
+          setError(message); setExecutionHistoryError(message);
+        }
       }).catch((cause) => {
         if (!active) return;
         const message = formatApiError(cause, "Unable to load dashboard data.");
